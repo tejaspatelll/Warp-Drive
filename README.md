@@ -8,8 +8,9 @@
 
 <table>
   <tr>
-    <td>
-      <img src="images/product_main.jpg" width="350"/>
+    <td>!
+
+      <img src="https://github.com/user-attachments/assets/b767ee87-1d27-45bb-bbc1-2ab3804b5354" width="350"/>
       <br><sub>🌟 The finished toy — ready for lift-off!</sub>
     </td>
     <td>
@@ -18,8 +19,8 @@
     </td>
   </tr>
   <tr>
-    <td>
-      <img src="images/setup_photo.jpg" width="350"/>
+    <td>!
+      <img src="https://github.com/user-attachments/assets/e90ab758-5080-4e88-884a-28b9e17179bf" width="350"/>
       <br><sub>🔌 Simple wiring: ESP8266 + TFT + potentiometer knob</sub>
     </td>
     <td>
