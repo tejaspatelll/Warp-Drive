@@ -6,42 +6,37 @@
 
 ## See It in Action!
 
-<table>
-  <tr>
-    <td>
-<div style="width:260px;height:260px;overflow:hidden;display:inline-block;vertical-align:top;text-align:center;margin:8px;">
-  <img src="images/product_main.jpg" style="width:260px;height:260px;object-fit:cover;object-position:center;" alt="Product photo">
-  <div style="font-size:small;color:#555;">🌟 The finished toy — ready for lift-off!</div>
-</div>
-      <br><sub>🌟 The finished toy — ready for lift-off!</sub>
-    </td>
-    <td>
- <div style="width:260px;height:260px;overflow:hidden;display:inline-block;vertical-align:top;text-align:center;margin:8px;">
-    <img src="images/3d_printed_module.jpg" style="width:260px;height:260px;object-fit:cover;object-position:center;" alt="3D printed shell">
-    <div style="font-size:small;color:#555;">🛠️ The sturdy, 3D-printed shell keeps everything kid-safe</div>
+<div align="center">
+
+  <div style="display: flex; flex-wrap: wrap; justify-content: center; gap: 16px;">
+
+    <div style="width:260px; height:260px; overflow:hidden; display:inline-block; text-align:center; margin:8px;">
+      <img src="images/product_main.jpg" alt="Product photo"
+        style="width:260px; height:260px; object-fit:cover; object-position:center; display:block;"/>
+      <div style="font-size:small; color:#555;">🌟 The finished toy — ready for lift-off!</div>
+    </div>
+
+    <div style="width:260px; height:260px; overflow:hidden; display:inline-block; text-align:center; margin:8px;">
+      <img src="images/3d_printed_module.jpg" alt="3D printed shell"
+        style="width:260px; height:260px; object-fit:cover; object-position:center; display:block;"/>
+      <div style="font-size:small; color:#555;">🛠️ The sturdy, 3D-printed shell keeps everything kid-safe</div>
+    </div>
+
+    <div style="width:260px; height:260px; overflow:hidden; display:inline-block; text-align:center; margin:8px;">
+      <img src="images/setup_photo.jpg" alt="Setup photo"
+        style="width:260px; height:260px; object-fit:cover; object-position:center; display:block;"/>
+      <div style="font-size:small; color:#555;">🔌 Simple wiring: ESP8266 + TFT + potentiometer knob</div>
+    </div>
+
+    <div style="width:260px; height:260px; overflow:hidden; display:inline-block; text-align:center; margin:8px;">
+      <video src="images/demo.mp4" width="260" height="260"
+        style="object-fit:cover; object-position:center; display:block;" autoplay loop muted playsinline></video>
+      <div style="font-size:small; color:#555;">🎬 Demo: Engage warp speed & discover a galaxy!</div>
+    </div>
+
   </div>
-      <br><sub>🛠️ The sturdy, 3D-printed shell keeps everything kid-safe</sub>
-    </td>
-  </tr>
-  <tr>
-    <td>
-  <div style="width:260px;height:260px;overflow:hidden;display:inline-block;vertical-align:top;text-align:center;margin:8px;">
-    <img src="images/setup_photo.jpg" style="width:260px;height:260px;object-fit:cover;object-position:center;" alt="Setup photo">
-    <div style="font-size:small;color:#555;">🔌 Simple wiring: ESP8266 + TFT + knob</div>
-  </div>
-<br><sub>🔌 Simple wiring: ESP8266 + TFT + potentiometer knob</sub>
-    </td>
-    <td>
-<div style="width:260px;height:260px;overflow:hidden;display:inline-block;vertical-align:top;text-align:center;margin:8px;">
-  <video src="images/demo.mp4" width="260" height="260" style="object-fit:cover;object-position:center;display:block;" autoplay loop muted playsinline></video>
-  <div style="font-size:small;color:#555;">🎬 Demo: Engaging warp speed and discovering a galaxy!</div>
 </div>
 
-
-      <br><sub>🎬 Demo: Watch as we engage warp speed and discover a galaxy!</sub>
-    </td>
-  </tr>
-</table>
 
 ---
 
