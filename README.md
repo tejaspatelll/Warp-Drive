@@ -37,7 +37,6 @@
   </div>
 </div>
 
-
 ---
 
 ## What is Warp Drive Space Adventure?
