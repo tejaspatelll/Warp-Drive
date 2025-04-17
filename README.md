@@ -6,9 +6,10 @@
 
 ## See It in Action!
 
-| ![Toy](images/product_main.jpg) <br> 🌟 The finished toy — ready for lift-off! | ![3D Printed Shell](images/3d_printed_module.jpg) <br> 🛠️ The sturdy, 3D-printed shell keeps everything kid-safe |
+| ![Toy](images/product_main_square.jpg) <br> 🌟 The finished toy — ready for lift-off! | ![3D Printed Shell](images/3d_printed_module_square.jpg) <br> 🛠️ The sturdy, 3D-printed shell keeps everything kid-safe |
 |:---:|:---:|
-| ![Setup](images/setup_photo.jpg) <br> 🔌 Simple wiring: ESP8266 + TFT + potentiometer knob | [![Demo: Engage warp speed & discover a galaxy!](images/demo_thumb.jpg)](images/demo.mp4) <br> 🎬 Demo: Engage warp speed & discover a galaxy! (click for video) |
+| ![Setup](images/setup_photo_square.jpg) <br> 🔌 Simple wiring: ESP8266 + TFT + potentiometer knob | [![Demo: Engage warp speed & discover a galaxy!](images/demo_thumb_square.jpg)](images/demo.mp4) <br> 🎬 Demo: Engage warp speed & discover a galaxy! (click for video) |
+
 
 
 ---
