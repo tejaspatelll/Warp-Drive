@@ -1,6 +1,6 @@
-# Warp Drive Space Adventure Toy 🚀🪐
+# Warp Drive Universe Explorer Toy 🚀🪐
 
-*An interactive, educational space travel experience for kids, built on ESP8266 and a colorful TFT display!*
+*An interactive, educational space travel experience for kids, built on ESP32 and a colorful TFT display!*
 
 ---
 
@@ -10,7 +10,7 @@
 
 | ![Toy](images/product_main.jpg) <br> 🌟 The finished toy — ready for lift-off! | ![3D Printed Shell](images/3d_printed_module.jpg) <br> 🛠️ The sturdy, 3D-printed shell keeps everything kid-safe |
 |:---:|:---:|
-| ![Setup](images/setup_photo.jpg) <br> 🔌 Simple wiring: ESP8266 + TFT + potentiometer knob | [![Demo: Engage warp speed & discover a galaxy!](images/demo_thumb.jpg)](images/demo.gif) <br> 🎬 Demo: Engage warp speed & discover a galaxy! (click for video) |
+| ![Setup](images/setup_photo.jpg) <br> 🔌 Simple wiring: ESP32 + TFT + potentiometer knob | [![Demo: Engage warp speed & discover a galaxy!](images/demo_thumb.jpg)](images/demo.gif) <br> 🎬 Demo: Engage warp speed & discover a galaxy! (click for video) |
 
 
 
@@ -18,9 +18,9 @@
 
 ---
 
-## What is Warp Drive Space Adventure?
+## What is Warp Drive Universe Explorer?
 
-**Warp Drive Space Adventure** is a fun, hands-on gadget for curious kids who want to explore the wonders of space! Inspired by the excitement of Star Trek, this toy turns a tiny computer (the ESP8266) and a bright screen into your personal starship window. With just a twist of a knob, kids can travel at “warp speed,” discover amazing cosmic objects, and learn about real space science as playful animations bring the universe to life!
+**Warp Drive Universe Explorer** is a fun, hands-on gadget for curious kids who want to explore the wonders of space! Inspired by the excitement of Star Trek, this toy turns a tiny computer (the ESP32) and a bright screen into your personal starship window. With just a twist of a knob, kids can travel at “warp speed,” discover amazing cosmic objects, and learn about real space science as playful animations bring the universe to life!
 
 ---
 
@@ -36,7 +36,7 @@
 
 ## Why This Toy Is Special (Educational & Fun!)
 
-**Warp Drive Space Adventure** is more than a toy—it’s a playful introduction to physics, astronomy, and creativity:
+**Warp Drive Universe Explorer** is more than a toy—it’s a playful introduction to physics, astronomy, and creativity:
 
 - **STEAM Learning:** Kids see black holes, supernovae, and galaxies come alive, sparking curiosity about how space works.
 - **Engaged Senses:** Colorful visuals and smooth motion encourage attention and imagination.
@@ -48,7 +48,7 @@
 ## What’s Inside? (Tech for the Grown-Ups)
 
 - **Hardware:**
-  - ESP8266 microcontroller (NodeMCU, Wemos D1 Mini, etc.)
+  - ESP32 microcontroller (NodeMCU, Wemos D1 Mini, etc.)
   - ST7735 color TFT screen (128x128 pixels)
   - Child-friendly potentiometer knob for speed control
   - All powered by USB or battery pack
@@ -64,14 +64,14 @@
 ## How to Build One
 
 1. **Collect Parts**
-   - ESP8266 board
+   - ESP32 board
    - 128x128 TFT display (ST7735)
    - Potentiometer (big, easy to grip if possible)
    - Jumper wires and breadboard or pre-made kid-proof case
 
 2. **Wire It Up** (Sample Default Wiring)
 
-   | TFT Pin | ESP8266 Pin | Function        |
+   | TFT Pin | ESP32 Pin | Function        |
    |---------|-------------|-----------------|
    | CS      | D1 (GPIO5)  | Chip Select     |
    | RST     | D2 (GPIO4)  | Reset           |
@@ -81,9 +81,9 @@
    | GND/VCC | GND/3.3V    | Power           |
    | POT     | A0          | Speed Control   |
 
-3. **Install Arduino (or PlatformIO), add ESP8266 & [TFT_eSPI](https://github.com/Bodmer/TFT_eSPI) library**
+3. **Install Arduino (or PlatformIO), add ESP32 & [TFT_eSPI](https://github.com/Bodmer/TFT_eSPI) library**
 4. **Edit `User_Setup.h` in `TFT_eSPI` to match the above pins**
-5. **Upload the code to your ESP8266**
+5. **Upload the code to your ESP32**
 6. **Turn it on and fly through the stars!**
 
 ---
