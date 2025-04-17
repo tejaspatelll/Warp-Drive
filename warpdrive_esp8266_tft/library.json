@@ -1,0 +1,24 @@
+{
+  "name": "ESP8266_Warp_Drive_Visualization",
+  "version": "1.0.0",
+  "description": "Star Trek-inspired warp drive visualization on a TFT display for ESP8266",
+  "keywords": "esp8266, tft, warp drive, animation, visualization",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/username/warpdrive_esp8266_tft.git"
+  },
+  "authors": [
+    {
+      "name": "ESP8266 Warp Drive Team",
+      "email": "your.email@example.com",
+      "maintainer": true
+    }
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "bodmer/TFT_eSPI": "^2.5.0",
+    "ESP8266WiFi": "*"
+  },
+  "frameworks": "arduino",
+  "platforms": "espressif8266"
+} 
