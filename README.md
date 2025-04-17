@@ -9,17 +9,17 @@
 <table>
   <tr>
     <td>
-      <img src="images/product_main.jpg" alt="Product overview" style="object-fit:cover;width:260px;height:260px;border-radius:18px;margin:10px;display:inline-block;vertical-align:middle;" />
+      <img src="images/product_main.jpg" alt="Product overview" style="object-fit:crop;width:260px;height:260px;border-radius:18px;margin:10px;display:inline-block;vertical-align:middle;" />
       <br><sub>🌟 The finished toy — ready for lift-off!</sub>
     </td>
     <td>
-     <img src="images/3d_printed_module.jpg" alt="3D printed case" style="object-fit:cover;width:260px;height:260px;border-radius:18px;margin:10px;display:inline-block;vertical-align:middle;" />
+     <img src="images/3d_printed_module.jpg" alt="3D printed case" style="object-fit:crop;width:260px;height:260px;border-radius:18px;margin:10px;display:inline-block;vertical-align:middle;" />
  <br><sub>🛠️ The sturdy, 3D-printed shell keeps everything kid-safe</sub>
     </td>
   </tr>
   <tr>
     <td>
-      <img src="images/setup_photo.jpg" alt="Setup wiring" style="object-fit:cover;width:260px;height:260px;border-radius:18px;margin:10px;display:inline-block;vertical-align:middle;" />
+      <img src="images/setup_photo.jpg" alt="Setup wiring" style="object-fit:crop;width:260px;height:260px;border-radius:18px;margin:10px;display:inline-block;vertical-align:middle;" />
 <br><sub>🔌 Simple wiring: ESP8266 + TFT + potentiometer knob</sub>
     </td>
     <td>
