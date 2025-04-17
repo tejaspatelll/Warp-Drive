@@ -8,7 +8,7 @@
 
 <table>
   <tr>
-    <td>!
+    <td>
 
       <img src="https://github.com/user-attachments/assets/b767ee87-1d27-45bb-bbc1-2ab3804b5354" width="350"/>
       <br><sub>🌟 The finished toy — ready for lift-off!</sub>
