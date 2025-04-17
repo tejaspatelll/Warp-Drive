@@ -6,36 +6,10 @@
 
 ## See It in Action!
 
-<div align="center">
+| ![Toy](images/product_main.jpg) <br> 🌟 The finished toy — ready for lift-off! | ![3D Printed Shell](images/3d_printed_module.jpg) <br> 🛠️ The sturdy, 3D-printed shell keeps everything kid-safe |
+|:---:|:---:|
+| ![Setup](images/setup_photo.jpg) <br> 🔌 Simple wiring: ESP8266 + TFT + potentiometer knob | [![Demo: Engage warp speed & discover a galaxy!](images/demo_thumb.jpg)](images/demo.mp4) <br> 🎬 Demo: Engage warp speed & discover a galaxy! (click for video) |
 
-  <div style="display: flex; flex-wrap: wrap; justify-content: center; gap: 16px;">
-
-    <div style="width:260px; height:260px; overflow:hidden; display:inline-block; text-align:center; margin:8px;">
-      <img src="images/product_main.jpg" alt="Product photo"
-        style="width:260px; height:260px; object-fit:cover; object-position:center; display:block;"/>
-      <div style="font-size:small; color:#555;">🌟 The finished toy — ready for lift-off!</div>
-    </div>
-
-    <div style="width:260px; height:260px; overflow:hidden; display:inline-block; text-align:center; margin:8px;">
-      <img src="images/3d_printed_module.jpg" alt="3D printed shell"
-        style="width:260px; height:260px; object-fit:cover; object-position:center; display:block;"/>
-      <div style="font-size:small; color:#555;">🛠️ The sturdy, 3D-printed shell keeps everything kid-safe</div>
-    </div>
-
-    <div style="width:260px; height:260px; overflow:hidden; display:inline-block; text-align:center; margin:8px;">
-      <img src="images/setup_photo.jpg" alt="Setup photo"
-        style="width:260px; height:260px; object-fit:cover; object-position:center; display:block;"/>
-      <div style="font-size:small; color:#555;">🔌 Simple wiring: ESP8266 + TFT + potentiometer knob</div>
-    </div>
-
-    <div style="width:260px; height:260px; overflow:hidden; display:inline-block; text-align:center; margin:8px;">
-      <video src="images/demo.mp4" width="260" height="260"
-        style="object-fit:cover; object-position:center; display:block;" autoplay loop muted playsinline></video>
-      <div style="font-size:small; color:#555;">🎬 Demo: Engage warp speed & discover a galaxy!</div>
-    </div>
-
-  </div>
-</div>
 
 ---
 
