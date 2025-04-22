@@ -10,7 +10,7 @@ Turn an ESP32 microcontroller and a vibrant TFT display into your personal Star 
 
 | ![Toy](images/product_main.jpg) <br> 🌟 The finished toy — ready for lift-off! | ![3D Printed Shell](images/3d_printed_module.jpg) <br> 🛠️ The sturdy, 3D-printed shell keeps everything kid-safe |
 |:---:|:---:|
-| ![Setup](images/setup_photo.jpg) <br> 🔌 Simple wiring: ESP8266 + TFT + potentiometer knob | [![Demo: Engage warp speed & discover a galaxy!](images/demo_thumb.jpg)](images/demo.gif) <br> 🎬 Demo: Engage warp speed & discover a galaxy! (click for video) |
+| ![Setup](images/setup_photo.jpg) <br> 🔌 Simple wiring: ESP8266 + TFT + potentiometer knob | [![Demo: Engage warp speed & discover a galaxy!](images/demo.gif)](images/demo.gif) <br> 🎬 Demo: Engage warp speed & discover a galaxy! (click for video) |
 
 
 *All images are pre-cropped for best display. Click the demo image to watch the video!*
