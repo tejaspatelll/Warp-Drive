@@ -10,7 +10,7 @@ Turn an ESP32 microcontroller and a vibrant TFT display into your personal Star 
 
 | ![Toy](images/product_main.jpg) <br> 🌟 The finished toy — ready for lift-off! | ![3D Printed Shell](images/3d_printed_module.jpg) <br> 🛠️ The sturdy, 3D-printed shell keeps everything kid-safe |
 |:---:|:---:|
-| ![Setup](images/setup_photo.jpg) <br> 🔌 Simple wiring: ESP8266 + TFT + potentiometer knob | [![Demo: Engage warp speed & discover a galaxy!](images/demo_thumb.jpg)](images/demo.gif) <br> 🎬 Demo: Engage warp speed & discover a galaxy! (click for video) |
+| ![Setup](images/setup_photo.jpg) <br> 🔌 Simple wiring: ESP8266 + TFT + potentiometer knob | [![Demo: Engage warp speed & discover a galaxy!](images/demo.gif)](images/demo.gif) <br> 🎬 Demo: Engage warp speed & discover a galaxy! (click for video) |
 
 
 *All images are pre-cropped for best display. Click the demo image to watch the video!*
@@ -31,7 +31,19 @@ Built to inspire curiosity and imagination, it’s a real electronics project th
 - 🌠 **Shooting Stars:** Catch glimpses of shooting stars streaking across space.
 - 🚀 **Warp Speed Effects:** Turn the knob to engage warp—stars stretch into light speed lines!
 - 🪐 **Explore the Cosmos:** Drop out of warp to discover planets, nebulae, black holes, and more.
-- 🔋 **Simple Power Control:** Robust design for safe and easy operation (see code for power features).
+- 🧠 **Quiz Mode:** Test your cosmic knowledge with interactive, multiple-choice science questions (potentiometer to select, button to answer!).
+- 📖 **Story Mode:** Experience an interactive, step-by-step cosmic adventure—advance the story with the knob and immerse yourself in the universe.
+- 🗂️ **Easy Menu Navigation:** Pick your mode (Discovery, Quiz, Story) with a twist and a click.
+- 🔋 **Power Management:** Long-press to enter deep sleep; wake up with a button—perfect for classrooms or battery projects.
+- ⚡ **Optimized Performance:** Smooth animation, clever redraws, and efficient memory use for buttery visuals on microcontrollers.
+
+---
+
+## Modes
+
+- **Discovery Mode:** Pilot your warp drive, discover new celestial objects, and watch unique animations for each one.
+- **Quiz Mode:** Answer fun science questions and get instant feedback—learn as you play!
+- **Story Mode:** Follow a cosmic narrative, step by step, with the stars twinkling in the background.
 
 ---
 
@@ -47,7 +59,7 @@ Built to inspire curiosity and imagination, it’s a real electronics project th
 
 ## Celestial Objects to Discover
 
-Who knows what you’ll find each time you explore?
+Who knows what you’ll find each time you explore? Each object is lovingly animated with its own personality!
 
 - 🌟 Stars (twinkling, flaring, bright and dim)
 - 🪐 Planets (with rings, clouds, and vibrant colors)
@@ -55,11 +67,11 @@ Who knows what you’ll find each time you explore?
 - 🌌 Galaxies (majestic spirals and ellipticals)
 - ☀️ Solar Systems (stars with orbiting planets)
 - ☄️ Asteroid Fields (dense rocks drifting in space)
-- ⚫ Black Holes (complete with gravity effects!)
-- 💫 Pulsars (spinning neutron stars)
-- 💥 Supernovae (exploding with color)
-- 🌠 Comets (icy travelers with glowing tails)
-- ✨ Binary Stars, Space Stations, and more on the way!
+- ⚫ Black Holes (gravity-bending wells, animated accretion disks)
+- 💫 Pulsars (spinning neutron stars with sweeping beams)
+- 💥 Supernovae (exploding with color and expanding shockwaves)
+- 🌠 Comets (icy travelers with glowing, fading tails)
+- ✨ Binary Stars, Space Stations, and more—plus easy expansion for new discoveries!
 
 ---
 
@@ -67,8 +79,9 @@ Who knows what you’ll find each time you explore?
 
 - **ESP32 Microcontroller:** The brain of the operation—fast, affordable, and beginner-friendly.
 - **ST7735 TFT Display:** 128x128 pixel color screen brings the cosmos to life.
-- **Potentiometer Knob:** Turn to change your speed—warp or cruise!
-- **Custom ESP32 Code:** Smooth animations, clever memory use, and low power consumption.
+- **Potentiometer Knob:** Twist to change your speed, select menu items, and answer quiz questions.
+- **Button:** Confirm selections, return to menu, or power down with a long press.
+- **Custom ESP32 Code:** Modular, well-commented, and easy to extend—now with state machine logic for modes!
 - **TFT_eSPI Library:** For lightning-fast graphics on microcontrollers.
 
 ---
@@ -80,6 +93,7 @@ Who knows what you’ll find each time you explore?
 - ESP32 development board
 - 128×128 TFT display (ST7735)
 - 10k potentiometer (knob)
+- Momentary pushbutton
 - Breadboard, jumper wires
 - (Optional) 3D-printed or DIY kid-safe enclosure
 
@@ -92,10 +106,11 @@ Who knows what you’ll find each time you explore?
 | DC      | GPIO0 (D3)    | Data/Command    |
 | MOSI    | GPIO13 (D7)   | Data Out        |
 | SCLK    | GPIO14 (D5)   | Clock           |
-| LED/BLK | GPIO16        | Backlight (optional) |
+| LED/BLK | GPIO16/19     | Backlight (optional) |
 | VCC     | 3.3V          | Power           |
 | GND     | GND           | Ground          |
-| POT     | A0            | Speed Control   |
+| POT     | GPIO35 (A0)   | Speed/Menu/Quiz Control   |
+| BUTTON  | GPIO15        | Menu/Power/Quiz Confirm   |
 
 ### Software Setup
 
@@ -120,11 +135,12 @@ Who knows what you’ll find each time you explore?
 
 ## Dream Big: Future Ideas
 
-- More celestial objects and cosmic effects!
-- Sound and music support.
+- Even more celestial objects and wild cosmic effects!
+- Sound and music support (maybe a warp whoosh?).
 - Bigger, higher-res displays.
 - Multiplayer or Wi-Fi-connected discoveries.
 - “Build your own planet” modes.
+- More quiz questions and interactive stories.
 
 ---
 
