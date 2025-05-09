@@ -98,6 +98,14 @@ void drawSupernova() {
       supernovaParticles[i].vx = cos(angle) * speed;
       supernovaParticles[i].vy = sin(angle) * speed;
     }
+    
+    // Trigger haptic burst for supernova explosion
+    extern bool hapticOverrideActive;
+    extern float hapticOverrideValue;
+    extern unsigned long hapticOverrideEndTime;
+    hapticOverrideActive = true;
+    hapticOverrideValue = 1.0f; // Max intensity
+    hapticOverrideEndTime = currentTime + 600; // 600ms burst
   } else if (supernovaPhase == 1 && elapsedTime > 3000) {
     supernovaPhase = 2; // Start fading
   }
@@ -222,7 +230,7 @@ void eraseSupernova() {
     }
     
     // Clear the full shockwave area just to be safe
-    int maxShockwaveRadius = 40 * objectScale;
+    int maxShockwaveRadius = 45 * objectScale;
     tft.fillCircle(objectX, objectY, maxShockwaveRadius, BG_COLOR);
     
     supernovaInitialized = false;

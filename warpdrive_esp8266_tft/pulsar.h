@@ -20,7 +20,7 @@ namespace {
     int pulsarRadius = 0;
     int prevPulsarX = 0, prevPulsarY = 0;
     float prevAngle = 0;
-    uint8_t intensityMap[128]; // Pre-calculated intensity map for beams
+    uint8_t intensityMap[128]; // Pre-calculated intensity map for beams. Must match max supported screen width.
 }
 
 // Function prototypes for internal functions
@@ -31,8 +31,8 @@ void erasePulsarRipple(int centerX, int centerY, int distance, float angle, floa
 void precalculateIntensityMap();
 
 void precalculateIntensityMap() {
-    for (int i = 0; i < 128; i++) {
-        float distFactor = (float)i / 128.0f;
+    for (int i = 0; i < SCREEN_WIDTH; i++) {
+        float distFactor = (float)i / SCREEN_WIDTH;
         intensityMap[i] = (uint8_t)(255 * (1.0f - distFactor * distFactor));
     }
 }

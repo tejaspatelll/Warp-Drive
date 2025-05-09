@@ -14,8 +14,8 @@ extern float objectScale;
 struct Star {
   float realX;          // Actual X position (float for smooth warp movement)
   float realY;          // Actual Y position
-  uint8_t x;            // Integer X position for drawing
-  uint8_t y;            // Integer Y position for drawing
+  uint16_t x;            // Integer X position for drawing (changed from uint8_t to uint16_t)
+  uint16_t y;            // Integer Y position for drawing (changed from uint8_t to uint16_t)
   uint8_t brightness;   // Brightness level (150-255)
   bool increasing;      // Brightness direction flag
   uint8_t streakLength; // Length of streak in warp mode

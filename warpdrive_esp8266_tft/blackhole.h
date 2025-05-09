@@ -87,9 +87,10 @@ int prevInnerParticleY[4] = {-1, -1, -1, -1};
 
 
 void drawBlackHole() {
+
     int centerX = objectX;
     int centerY = objectY;
-    float scale = objectScale;
+    float scale =  objectScale;
     unsigned long currentTime = millis();
 
     // Calculate radii based on scale for this frame
@@ -380,6 +381,13 @@ void drawBlackHole() {
 
             // If star was consumed (close enough), trigger consumption effect and trail fade
              if (dist <= blackHoleRadius * 1.5f) { // Only flash if consumed near BH
+                // Haptic feedback: vibrate when star is consumed
+                extern bool hapticOverrideActive;
+                extern float hapticOverrideValue;
+                extern unsigned long hapticOverrideEndTime;
+                hapticOverrideActive = true;
+                hapticOverrideValue = 0.7f; // Burst intensity for star consumption
+                hapticOverrideEndTime = millis() + 300; // 300ms burst
                 // Instantaneous flash effect (draw immediately)
                 float consumptionAngle = atan2(fallingStars[i].y - centerY, fallingStars[i].x - centerX);
                 for (int r = 0; r <= 2; r++) {
@@ -820,32 +828,32 @@ void initializeAccretionParticle(int index, int centerX, int centerY) {
     // Calculate RGB based on temperature (simplified blackbody)
     int r, g, b;
     if (temp_ratio > 1.5f) {
-        // Very hot - more vibrant blue/white
-        r = 255; g = 255; b = 255; // Pure white for hottest regions
-    } else if (temp_ratio > 1.2f) {
-        // Hot - bright white with blue tint
+        // Very hot - bright blue-white
         r = 255; g = 255; b = 255;
+    } else if (temp_ratio > 1.2f) {
+        // Hot - intense blue with white
+        r = 230; g = 255; b = 255;
     } else if (temp_ratio > 0.8f) {
-        // Medium - bright white-yellow
-        r = 255; g = 255; b = 220;
+        // Medium - intense cyan-white
+        r = 180; g = 255; b = 255;
     } else if (temp_ratio > 0.6f) {
-        // Cool - vibrant yellow
-        r = 255; g = 240; b = 150;
+        // Warm - vibrant yellow-orange
+        r = 255; g = 220; b = 100;
     } else {
-        // Coolest - bright orange
-        r = 255; g = 200; b = 100;
+        // Coolest - intense orange-red
+        r = 255; g = 150; b = 50;
     }
 
-    // Apply relativistic beaming and Doppler shift
+    // Apply relativistic beaming and Doppler shift with increased minimum brightness
     float intensity = pow(doppler, 4.0f); // Relativistic beaming factor
-    intensity = constrain(intensity, 0.1f, 3.0f);
+    intensity = constrain(intensity * 1.5f, 0.3f, 3.0f); // Increased minimum and overall intensity
     
-    r = constrain((int)(r * intensity), 0, 255);
-    g = constrain((int)(g * intensity), 0, 255);
-    b = constrain((int)(b * intensity), 0, 255);
+    r = constrain((int)(r * intensity), 80, 255); // Increased minimum red
+    g = constrain((int)(g * intensity), 50, 255); // Increased minimum green
+    b = constrain((int)(b * intensity), 30, 255); // Increased minimum blue
 
     accretionDisk[index].color = tft.color565(r, g, b);
-    accretionDisk[index].brightness = constrain((int)(255 * intensity), 50, 255);
+    accretionDisk[index].brightness = constrain((int)(255 * intensity), 100, 255); // Increased minimum brightness
 
     // Initialize other properties
     accretionDisk[index].prevX = -1;

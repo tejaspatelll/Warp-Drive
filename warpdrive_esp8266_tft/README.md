@@ -1,101 +1,160 @@
-# ESP32 Warp Drive: A Space Visualization Toy!
+
+# Cosmic Knobulator - Universe Explorer Toy 🚀🪐
+
+**Blast off into a hands-on, educational space adventure!**  
+Turn an ESP32 microcontroller and a vibrant TFT display into your personal Star Trek-inspired Cosmic Knobulator and explore a dazzling universe—no screens required!
+
+---
+
+## See It in Action!
+
+| ![Toy](images/product_main.jpg) <br> 🌟 The finished toy — ready for lift-off! | ![3D Printed Shell](images/3d_printed_module.jpg) <br> 🛠️ The sturdy, 3D-printed shell keeps everything kid-safe |
+|:---:|:---:|
+| ![Setup](images/setup_photo.jpg) <br> 🔌 Simple wiring: ESP8266 + TFT + potentiometer knob | [![Demo: Engage warp speed & discover a galaxy!](images/demo.gif)](images/demo.gif) <br> 🎬 Demo: Engage warp speed & discover a galaxy! (click for video) |
 
 
+*All images are pre-cropped for best display. Click the demo image to watch the video!*
 
-Blast off into a fun, interactive space adventure! This project turns an ESP32 microcontroller and a small TFT display into a captivating *Star Trek*-inspired warp drive visualization.
+---
 
-It's a fantastic educational tool to explore coding, electronics, and the wonders of space!
+## What is Cosmic Knobulator?
+
+**Cosmic Knobulator** is a playful, STEAM-powered gadget that lets kids (and adults!) travel the cosmos from their hands.  
+Turn the sturdy knob to speed up—stars zip by, and every “warp jump” reveals a new cosmic discovery!  
+Built to inspire curiosity and imagination, it’s a real electronics project that’s safe, robust, and magical.
+
+---
 
 ## Features
 
-✨ **Twinkling Starfield:** Watch a mesmerizing field of stars shimmer and shine.
-🌠 **Shooting Stars:** Catch glimpses of shooting stars streaking across the void.
-🚀 **Warp Speed!** Turn the control knob (potentiometer) to engage the warp drive and see the stars stretch into lines as you accelerate through space.
-🪐 **Explore the Cosmos:** When you drop out of warp, you might discover exciting celestial objects!
-🔋 **Power Control:** Simple power management features (check code for details, potentially long-press).
+- ✨ **Twinkling Starfield:** Watch a mesmerizing field of stars shimmer and shine.
+- 🌠 **Shooting Stars:** Catch glimpses of shooting stars streaking across space.
+- 🚀 **Warp Speed Effects:** Turn the knob to engage warp—stars stretch into light speed lines!
+- 🪐 **Explore the Cosmos:** Drop out of warp to discover planets, nebulae, black holes, and more.
+- 🧠 **Quiz Mode:** Test your cosmic knowledge with interactive, multiple-choice science questions (potentiometer to select, button to answer!).
+- 📖 **Story Mode:** Experience an interactive, step-by-step cosmic adventure—advance the story with the knob and immerse yourself in the universe.
+- 🗂️ **Easy Menu Navigation:** Pick your mode (Discovery, Quiz, Story) with a twist and a click.
+- 🔋 **Power Management:** Long-press to enter deep sleep; wake up with a button—perfect for classrooms or battery projects.
+- ⚡ **Optimized Performance:** Smooth animation, clever redraws, and efficient memory use for buttery visuals on microcontrollers.
 
-### Discovered Celestial Objects
+---
 
-Who knows what you'll find? Possibilities include:
+## Modes
 
-1.  🌟 **Stars:** Bright points varying in light and flare.
-2.  🪐 **Planets:** Colorful worlds, some with atmospheres.
-3.  ☁️ **Nebulae:** Swirling clouds of cosmic gas and dust.
-4.  🌌 **Galaxies:** Majestic spiral structures.
-5.  ☀️ **Solar Systems:** Stars with orbiting planets.
-6.  ☄️ **Asteroid Fields:** Navigate through space rocks.
-7.  ⚫ **Black Holes:** Mysterious gravitational wells.
-8.  💫 **Pulsars:** Rapidly spinning neutron stars.
-9.  💥 **Supernovae:** Exploding stars!
-10. 🌠 **Comets:** Icy bodies with bright tails.
-11. ✨ **Binary Star Systems:** Two stars orbiting each other.
-12. 🛰️ **Space Stations:** Artificial structures in orbit.
+- **Discovery Mode:** Pilot your Cosmic Knobulator, discover new celestial objects, and watch unique animations for each one.
+- **Quiz Mode:** Answer fun science questions and get instant feedback—learn as you play!
+- **Story Mode:** Follow a cosmic narrative, step by step, with the stars twinkling in the background.
 
-## Improvements
-*   **More Celestial Objects:** Expand the list of discovered objects.
+---
 
+## Why This Toy is Special
 
+- **STEAM Learning:** Makes coding, physics, and astronomy fun and approachable.
+- **Engaged Senses:** Bright colors, smooth motion, and a tactile knob keep kids captivated.
+- **Discovery Mode:** No two adventures are alike—each journey reveals different cosmic objects!
+- **Screen-Free:** Real-world, hands-on fun—no phone or tablet required.
+- **Kid-Proof:** Solid case and simple controls, perfect for little hands in classrooms, camps, or family rooms.
 
-## How it Works (The Fun Tech Stuff!)
+---
 
-This project uses:
+## Celestial Objects to Discover
 
-*   **An ESP32 microcontroller:** The 'brain' of the operation.
-*   **A ST7735 TFT Display (128x128 pixels):** A small color screen to show the visuals.
-*   **A Potentiometer:** A knob to control the warp speed effect.
-*   **The TFT_eSPI Library:** An optimized library for fast graphics on the ESP32.
+Who knows what you’ll find each time you explore? Each object is lovingly animated with its own personality!
 
-## Getting Started: Build Your Own!
+- 🌟 Stars (twinkling, flaring, bright and dim)
+- 🪐 Planets (with rings, clouds, and vibrant colors)
+- ☁️ Nebulae (swirling clouds of cosmic gas)
+- 🌌 Galaxies (majestic spirals and ellipticals)
+- ☀️ Solar Systems (stars with orbiting planets)
+- ☄️ Asteroid Fields (dense rocks drifting in space)
+- ⚫ Black Holes (gravity-bending wells, animated accretion disks)
+- 💫 Pulsars (spinning neutron stars with sweeping beams)
+- 💥 Supernovae (exploding with color and expanding shockwaves)
+- 🌠 Comets (icy travelers with glowing, fading tails)
+- ✨ Binary Stars, Space Stations, and more—plus easy expansion for new discoveries!
 
-### Hardware Needed
+---
 
-*   ESP32 development board
-*   ST7735 TFT Display (128x128 pixels)
-*   10k Potentiometer
-*   Breadboard and jumper wires
+## How Does It Work?
+
+- **ESP32 Microcontroller:** The brain of the operation—fast, affordable, and beginner-friendly.
+- **ST7735 TFT Display:** 128x128 pixel color screen brings the cosmos to life.
+- **Potentiometer Knob:** Twist to change your speed, select menu items, and answer quiz questions.
+- **Button:** Confirm selections, return to menu, or power down with a long press.
+- **Custom ESP32 Code:** Modular, well-commented, and easy to extend—now with state machine logic for modes!
+- **TFT_eSPI Library:** For lightning-fast graphics on microcontrollers.
+
+---
+
+## Build Your Own
+
+### Hardware Required
+
+- ESP32 development board
+- 128×128 TFT display (ST7735)
+- 10k potentiometer (knob)
+- Momentary pushbutton
+- Breadboard, jumper wires
+- (Optional) 3D-printed or DIY kid-safe enclosure
 
 ### Wiring
 
-Connect the components as follows (refer to `User_Setup.h` for precise pins used in *this* project's configuration):
-
-*   **TFT Display** -> **ESP32**
-    *   CS (Chip Select) -> GPIO5 (D1)
-    *   RST (Reset) -> GPIO4 (D2)
-    *   DC (Data/Command) -> GPIO0 (D3)
-    *   MOSI (Data In) -> GPIO13 (D7)
-    *   SCLK (Clock) -> GPIO14 (D5)
-    *   LED/BLK (Backlight) -> GPIO16 (Optional, for brightness control)
-    *   VCC -> 3.3V
-    *   GND -> GND
-*   **Potentiometer** -> **ESP32**
-    *   Signal Pin (Middle) -> A0 (Analog Pin)
-    *   One Outer Pin -> 3.3V
-    *   Other Outer Pin -> GND
+| TFT Pin | ESP32 Pin     | Function        |
+|---------|---------------|-----------------|
+| CS      | GPIO5 (D1)    | Chip Select     |
+| RST     | GPIO4 (D2)    | Reset           |
+| DC      | GPIO0 (D3)    | Data/Command    |
+| MOSI    | GPIO13 (D7)   | Data Out        |
+| SCLK    | GPIO14 (D5)   | Clock           |
+| LED/BLK | GPIO19     | Backlight (optional) |
+| VCC     | 3.3V          | Power           |
+| GND     | GND           | Ground          |
+| POT     | GPIO35 (A0)   | Speed/Menu/Quiz Control   |
+| BUTTON  | GPIO15        | Menu/Power/Quiz Confirm   |
 
 ### Software Setup
 
-1.  **Install Arduino IDE:** Download and install from the [Arduino website](https://www.arduino.cc/en/software).
-2.  **Add ESP32 Board Support:** Follow [these instructions](https://randomnerdtutorials.com/installing-the-esp32-board-in-arduino-ide-v2/) to add ESP32 boards to your Arduino IDE.
-3.  **Install TFT_eSPI Library:** Open the Arduino IDE, go to `Sketch > Include Library > Manage Libraries...`. Search for `TFT_eSPI` and install it.
-4.  **Configure TFT_eSPI:**
-    *   **IMPORTANT:** This project uses specific pin settings. You need to tell the TFT_eSPI library about them.
-    *   Locate the TFT_eSPI library folder in your Arduino libraries directory (e.g., `Documents/Arduino/libraries/TFT_eSPI`).
-    *   **Either:** Replace the `User_Setup.h` file inside the library folder with the `User_Setup.h` file from this project.
-    *   **Or:** Edit the library's `User_Setup.h` (or `User_Setup_Select.h` to point to a custom setup) to match the pin definitions (`TFT_CS`, `TFT_RST`, `TFT_DC`, etc.) and the driver (`ST7735_DRIVER`) specified in this project's `User_Setup.h`.
-5.  **Open Project:** Open the `.ino` file (`warpdrive_esp8266_tft.ino`) in the Arduino IDE.
-6.  **Select Board & Port:** Choose your ESP32 board model and the correct COM port from the `Tools` menu.
-7.  **Upload!** Click the Upload button.
+1. **Install Arduino IDE** (or PlatformIO).
+2. **Add ESP32 Board Support** ([Official instructions](https://docs.espressif.com/projects/arduino-esp32/en/latest/installing.html)).
+3. **Install TFT_eSPI Library** from Arduino Library Manager.
+4. **Configure TFT_eSPI:**
+    - Copy this project’s `User_Setup.h` to the TFT_eSPI library folder,  
+      *OR* edit your existing `User_Setup.h` to match the wiring above.
+5. **Open and upload the code.**
+6. **Power up and explore!**
 
-## Usage
+---
 
-*   **Power On:** Connect the ESP32 to power.
-*   **Control Warp:** Turn the potentiometer knob to increase or decrease warp speed.
-*   **Enjoy the view!** See what celestial objects you discover when exiting warp.
+## For Educators, Makers, and Families
 
-## Contributing
+- **Perfect for classrooms, STEM camps, or maker clubs.**
+- **Starter project for learning coding, electronics, and astronomy.**
+- **Encourage creativity—kids can invent their own cosmic stories and discoveries!**
 
-Contributions, issues, and feature requests are welcome! Feel free to check the [issues page](https://github.com/tejaspatell/warpdrive_esp8266_tft/issues) (replace with your actual GitHub repo link if applicable).
+---
+
+## Dream Big: Future Ideas
+
+- Even more celestial objects and wild cosmic effects!
+- Sound and music support (maybe a warp whoosh?).
+- Bigger, higher-res displays.
+- Multiplayer or Wi-Fi-connected discoveries.
+- “Build your own planet” modes.
+- More quiz questions and interactive stories.
+
+---
 
 ## License
 
-This project is available under the [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+MIT License — Free for classrooms, makerspaces, and curious explorers everywhere.
+
+---
+
+## Credits & Thanks
+
+Inspired by classic science fiction, the open-source community, and every kid who’s ever looked up and wondered.  
+Special thanks to ESP32, Arduino, and TFT_eSPI contributors.
+
+---
+
+**Ready to explore the universe? Power up, twist the knob, and go where no toy has gone before!**

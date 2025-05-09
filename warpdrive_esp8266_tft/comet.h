@@ -75,7 +75,7 @@ void drawComet() {
     cometVy = dy / dist * speed;
 
     // Set comet size
-    cometRadius = 2 * scale;
+    cometRadius =  scale;
 
     // Initialize tail particles (inactive)
     for (int i = 0; i < MAX_COMET_TAIL; i++) {
@@ -163,10 +163,10 @@ void drawComet() {
 
       // Age and fade particle
       unsigned long particleAge = currentTime - cometTail[i].spawnTime;
-      if (particleAge > 2000) {
+      if (particleAge > 3500) {
         cometTail[i].brightness = 0;
       } else {
-        float fadeFactor = 1.0f - (float)particleAge / 2000.0f;
+        float fadeFactor = 1.0f - (float)particleAge / 3500.0f;
         int newBrightness = cometTail[i].brightness * fadeFactor;
         if (particleX >= 0 && particleX < SCREEN_WIDTH &&
             particleY >= 0 && particleY < SCREEN_HEIGHT) {
