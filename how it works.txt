@@ -1,0 +1,95 @@
+# Warp Drive System Architecture
+
+## 1. Project Overview
+This project is an ESP32—based “warp drive” visualization on a ST7735 128×128 TFT.  
+Users twist a potentiometer to engage a smooth Star—Trek—style warp effect, then slow down to randomly “discover” and animate a variety of celestial objects.  
+Two interactive modes—**Quiz** and **Story**—sit alongside the core Discovery experience.
+
+## 2. Hardware & Setup
+- **Microcontroller:** ESP32 (NodeMCU, Wemos D1, etc.)  
+- **Display:** ST7735 TFT (128×128 px) with TFT_eSPI library  
+- **Controls:**  
+  - **Potentiometer (POT_PIN):** GPIO 35 (ADC1_CHANNEL_7)  
+  - **Button (BUTTON_PIN):** GPIO 15 (short press = menu nav; long press = deep sleep)  
+- **Power:**  
+  - LED backlight on GPIO 19  
+  - Deep—sleep support via `<esp_sleep.h>` / `rtc_io.h`  
+- **User Settings:** All pin—defs, orientation, and calibration live in `User_Setup.h`.
+
+## 3. Software Components
+
+### 3.1 Core Files
+- **`warpdrive_esp8266_tft.ino`**  
+  - Contains `setup()` + `loop()`, system init, mode dispatch.  
+- **`star.h`**  
+  - Defines `Star` struct and `drawStar()` logic for normal twinkling.  
+- **`warp.h`**  
+  - `updateWarpStars()` to stretch stars outward in warp.
+
+### 3.2 Celestial Objects
+Each type lives in its own header with draw/init routines, invoked by `drawCelestialObject()` in `warpdrive_esp8266_tft.ino`:
+- **`blackhole.h`** – gravity well animation  
+- **`pulsar.h`** – rotating beam pulses  
+- **`supernova.h`** – expanding explosion effect  
+- **`comet.h`** – streaking comet with fading tail  
+
+Plus built—in types from `discovery.h`: stars, planets, nebulae, galaxies, solar systems, asteroid fields, binary stars, space stations.
+
+### 3.3 Interaction Modes
+- **Discovery Mode** (`State::DISCOVERY`)  
+  - Core warp + object reveal. 4/5 chance to show a new object when exiting warp.
+- **Quiz Mode** (`quiz_mode.h` + `quiz_popup.cpp/.h`)  
+  - Multiple—choice science quiz, potentiometer to select, button to confirm.  
+  - Pop—up feedback for correct/incorrect answers.
+- **Story Mode** (`story_mode.h`)  
+  - Guided narrative with step—by—step prompts, pot—driven navigation back and forth.
+
+## 4. Initialization (`initializeSystem()`)
+1. Seed random, configure TFT, load colors (`initColors()`).  
+2. Create `STAR_COUNT` stars at random positions/brightness/twinkle direction.  
+3. Initialize shooting stars, asteroid field, submenu states, etc.
+
+## 5. Main Loop (`loop()`)
+- **Read inputs:** `readPotentiometer()`, button debounce.  
+- **State—machine dispatcher:**  
+  - MENU → Discovery, Quiz, Story  
+  - DISCOVERY → warp engage/discover → back to menu  
+  - QUIZ/QUESTIONS → quiz engine → popup → back  
+  - STORY → story stepper → back  
+- **Power management:** long—press to enter deep—sleep; wake on button.
+
+## 6. Warp Drive Control
+- **Pot reading:** average 4 ADC samples, invert (4095−val).  
+- **Warp factor:** map pot [100…4095] → [0.0…1.0], smooth via `easeInOutCubic()`.  
+- **Warp effect:**  
+  - Speed = `MIN_WARP_SPEED + warpFactor×10`  
+  - Stars move outward, draw trailing lines proportional to distance.  
+  - Reset stars at center when off—screen.
+
+## 7. Object Discovery
+- When pot drops below threshold → `State::DISCOVERY`.  
+- Randomly pick an unseen object (track in `objectsShown[]`).  
+- Animate object with breathing/pulsing, display its name.
+
+## 8. Quiz Mode
+- Pot selects option, button confirms → `processQuizInput()`.  
+- On answer, trigger `showQuizPopup(true/false)`.  
+- Long—press returns to MENU.
+
+## 9. Story Mode
+- Pot to advance/rewind story steps → `processStoryInput()`.  
+- Typewriter text display via `typewriterText()`.  
+- Button returns to MENU.
+
+## 10. Performance Optimizations
+- **Frame—rate tuning:** up to 30 FPS in warp, lower in discovery.  
+- **Partial redraws:** erase only old primitives by tracking previous positions.  
+- **Staggered updates:** spread heavy draw calls across frames.
+
+## 11. Build & Dependencies
+- See `library.json` for all Arduino library versions (TFT_eSPI, SPI, etc.).  
+- Use Arduino CLI or IDE: select your ESP32 board and COM port, open `warpdrive_esp8266_tft.ino`, compile & flash.
+
+---
+
+*Enjoy piloting your custom warp drive and discovering the cosmos!*
