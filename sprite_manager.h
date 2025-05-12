@@ -12,158 +12,171 @@ extern uint16_t BG_COLOR;
 
 class SpriteManager {
 public:
-  // Enhanced sprite creation with stricter memory checks and safety features
-  static void createObjectSprite(TFT_eSprite& sprite, int size, const char* objectName) {
-    // First check if we even have enough memory for this sprite (approximate check)
-    #ifdef ESP32
-    uint32_t requiredMem = size * size; // 8-bit color depth = 1 byte per pixel
+  // Overload for square sprites (maintains previous simple calls if needed)
+  static void createObjectSprite(TFT_eSprite& sprite, int requestedSize, const char* objectName, bool preferPsram) {
+    createObjectSprite(sprite, requestedSize, requestedSize, objectName, preferPsram);
+  }
 
-    // Enhanced memory check with lower thresholds
-    uint32_t freeHeap = ESP.getFreeHeap();
-    uint32_t freePsram = ESP.getFreePsram();
+  // Creates a sprite (rectangular). Caller is responsible for explicit deletion via safeDeleteSprite().
+  static void createObjectSprite(TFT_eSprite& sprite, int requestedWidth, int requestedHeight, const char* objectName, bool preferPsram) {
+    uint32_t initialFreeHeap = 0;
+    uint32_t initialFreePsram = 0;
+    uint32_t requiredMem = requestedWidth * requestedHeight; // 8-bit color depth = 1 byte per pixel
+
+    #ifdef ESP32
+    initialFreeHeap = ESP.getFreeHeap();
+    initialFreePsram = ESP.getFreePsram();
     
-    // More conservative memory availability check
-    bool memoryAvailable = ((freePsram > requiredMem * 2) || (freeHeap > requiredMem * 2)) && 
-                           (freePsram > 10000) && (freeHeap > 10000);
+    Serial.printf("[%s Sprite] Initial Check: ReqSize %dx%d (%u bytes). Prefer PSRAM: %s. Free Heap: %u, Free PSRAM: %u\n", 
+                 objectName, requestedWidth, requestedHeight, requiredMem, preferPsram ? "Yes" : "No", initialFreeHeap, initialFreePsram);
+
+    bool canTryPsram = preferPsram && (initialFreePsram > requiredMem + 1024);
+    bool canTryHeap = !preferPsram && (initialFreeHeap > requiredMem + 1024);
+    bool chosenPathIsPsram = false;
+
+    if (preferPsram) {
+        if (canTryPsram) {
+            chosenPathIsPsram = true;
+        } else if (initialFreeHeap > requiredMem + 1024) { 
+            Serial.printf("[%s Sprite] WARNING: Preferred PSRAM but insufficient. Attempting Heap.\n", objectName);
+            chosenPathIsPsram = false;
+        } else {
+            Serial.printf("[%s Sprite] ERROR: Insufficient memory for %dx%d in PSRAM or Heap. Aborting.\n", objectName, requestedWidth, requestedHeight);
+            return;
+        }
+    } else { // prefer HEAP
+        if (canTryHeap) {
+            chosenPathIsPsram = false;
+        } else if (initialFreePsram > requiredMem + 1024) {
+             Serial.printf("[%s Sprite] WARNING: Preferred HEAP but insufficient. Attempting PSRAM.\n", objectName);
+            chosenPathIsPsram = true;
+        } else {
+            Serial.printf("[%s Sprite] ERROR: Insufficient memory for %dx%d in Heap or PSRAM. Aborting.\n", objectName, requestedWidth, requestedHeight);
+            return;
+        }
+    }
+
+    int finalWidth = requestedWidth;
+    int finalHeight = requestedHeight;
+
+    // Size reduction logic (very basic for now, can be more sophisticated)
+    // This part might need more thought for rectangular sprites if one dimension is much larger.
+    // For now, it simplifies to a general memory check.
+    if ((chosenPathIsPsram && initialFreePsram < requiredMem * 1.5) || (!chosenPathIsPsram && initialFreeHeap < requiredMem * 1.5)) {
+        // If memory is tight, one option is to try to shrink, e.g., proportionally or to fixed smaller sizes.
+        // For now, we'll just log and proceed if it passed the earlier check, 
+        // or rely on the critical check below to abort if still too small.
+        Serial.printf("[%s Sprite] INFO: Memory seems tight for %dx%d. Proceeding with caution.\n", objectName, finalWidth, finalHeight);
+        // Example reduction (needs better logic for rectangles):
+        // if (finalWidth > 64) finalWidth = 64;
+        // if (finalHeight > 64) finalHeight = 64;
+        // requiredMem = finalWidth * finalHeight;
+    }
     
-    // Log the memory situation
-    Serial.printf("[%s Sprite] Memory check: Needs %u bytes. Free PSRAM: %u, Heap: %u\n", 
-                 objectName, requiredMem, freePsram, freeHeap);
-    
-    if (!memoryAvailable) {
-      // If memory is tight, reduce size more aggressively
-      int originalSize = size;
-      if (size > 128) size = 128;
-      else if (size > 64) size = 64;
-      else size = 32; // Minimum reasonable size
-      
-      Serial.printf("[%s Sprite] MEMORY LOW - reduced size from %d to %d\n", 
-                  objectName, originalSize, size);
-      
-      // If we're critically low on memory, abort sprite creation
-      if (freeHeap < 8000 || freePsram < 8000) {
-        Serial.printf("[%s Sprite] CRITICAL MEMORY - aborting sprite creation\n", objectName);
-        // Mark sprite as invalid by setting dimensions to 0
-        sprite.deleteSprite();
+    // Ensure dimensions are at least 4x4 and even
+    finalWidth = std::max(4, finalWidth);
+    finalHeight = std::max(4, finalHeight);
+    if (finalWidth % 2 != 0) finalWidth += 1;
+    if (finalHeight % 2 != 0) finalHeight += 1;
+        
+    requiredMem = finalWidth * finalHeight; // Recalculate requiredMem for final dimensions
+
+    if ((chosenPathIsPsram && initialFreePsram < requiredMem + 512) || (!chosenPathIsPsram && initialFreeHeap < requiredMem + 512)) {
+        Serial.printf("[%s Sprite] CRITICAL MEMORY after final size adjustment for %dx%d. Aborting.\n", objectName, finalWidth, finalHeight);
         return;
-      }
     }
-    
-    // Ensure size is at least 4 pixels (min 2x2) but not too large
-    size = std::max(4, size);
-    size = std::min(size, 240); // Cap absolute max size regardless of calculation
-    
-    // Make sprite size even for better memory alignment
-    if (size % 2 != 0) {
-      size += 1;
+
+    if (sprite.getPointer() != nullptr) {
+        Serial.printf("[%s Sprite] WARNING: createObjectSprite called on an already initialized sprite. Explicitly delete first for safety.\n", objectName);
     }
+    #else // Not ESP32
+    int finalWidth = requestedWidth;
+    int finalHeight = requestedHeight;
+    if (finalWidth % 2 != 0) finalWidth += 1;
+    if (finalHeight % 2 != 0) finalHeight += 1;
+    finalWidth = std::max(4, std::min(finalWidth, SCREEN_WIDTH)); // Cap at screen dimensions
+    finalHeight = std::max(4, std::min(finalHeight, SCREEN_HEIGHT));
+    bool chosenPathIsPsram = false;
     #endif
-    
-    // Delete any existing sprite buffer to prevent memory leaks
-    if (sprite.width() > 0 || sprite.height() > 0) {
-      // Add a try-catch block to handle potential deletion issues
-      #ifdef ESP32
-      try {
-      #endif
-        sprite.deleteSprite();
-        delay(10); // Small delay to allow memory management to complete
-      #ifdef ESP32
-      } catch (...) {
-        Serial.printf("[%s Sprite] Error in sprite deletion\n", objectName);
-      }
-      #endif
-    }
-    
-    // Set sprite properties
-    sprite.setColorDepth(8); // Use 8-bit for memory efficiency
-    sprite.setAttribute(PSRAM_ENABLE, true);
+
+    sprite.setColorDepth(8);
+    sprite.setAttribute(PSRAM_ENABLE, chosenPathIsPsram);
     
     #ifdef ESP32
-    Serial.printf("[%s Sprite] Attempting %dx%d. Heap: %u, PSRAM: %u\n", 
-                  objectName, size, size, ESP.getFreeHeap(), ESP.getFreePsram());
+    Serial.printf("[%s Sprite] Attempting %dx%d. Target: %s. Heap: %u, PSRAM: %u\n", 
+                  objectName, finalWidth, finalHeight, chosenPathIsPsram ? "PSRAM" : "Heap", ESP.getFreeHeap(), ESP.getFreePsram());
+    #else
+    Serial.printf("[%s Sprite] Attempting %dx%d on non-ESP32 target (Heap assumed)\n", objectName, finalWidth, finalHeight);
     #endif
     
-    // Try to create the sprite - with size validation and error handling
     bool success = false;
-    
-    #ifdef ESP32
-    try {
-    #endif
-      if (size > 0) {
-        success = sprite.createSprite(size, size);
-      }
-    #ifdef ESP32
-    } catch (...) {
-      Serial.printf("[%s Sprite] Exception during sprite creation\n", objectName);
-      success = false;
+    if (finalWidth > 0 && finalHeight > 0) {
+        success = sprite.createSprite(finalWidth, finalHeight);
     }
-    #endif
     
-    // Check if creation was successful and validate dimensions
     if (success && sprite.width() > 0 && sprite.height() > 0) {
-      // Fill with background color immediately to prevent garbage
-      sprite.fillSprite(BG_COLOR);
+        sprite.fillSprite(BG_COLOR);
+        #ifdef ESP32
+        bool inPsramResult = SpriteManager::isInPSRAM(sprite);
+        uint32_t currentFreeHeap = ESP.getFreeHeap();
+        uint32_t currentFreePsram = ESP.getFreePsram();
+        Serial.printf("[%s Sprite] Created %dx%d. Allocated in: %s. Heap: %u, PSRAM free: %u\n", 
+                      objectName, sprite.width(), sprite.height(), // Use actual created dimensions
+                      inPsramResult ? "PSRAM" : "HEAP", 
+                      currentFreeHeap, currentFreePsram);
+        
+        if (chosenPathIsPsram && inPsramResult && currentFreePsram == 0 && initialFreePsram > requiredMem) {
+            Serial.printf("[%s Sprite] CRITICAL WARNING: PSRAM allocation success reported, but Free PSRAM is now 0! PSRAM heap may be unstable.\n", objectName);
+        }
+        if (chosenPathIsPsram && !inPsramResult && initialFreePsram > requiredMem) {
+             Serial.printf("[%s Sprite] WARNING: Sprite allocated in HEAP despite PSRAM preference and apparent availability.\n", objectName);
+        }
+        #else
+        Serial.printf("[%s Sprite] Created %dx%d.\n", objectName, sprite.width(), sprite.height());
+        #endif
+    } else {
+        #ifdef ESP32
+        Serial.printf("[%s Sprite] FAILED to create %dx%d. Heap: %u, PSRAM free: %u\n", 
+                      objectName, finalWidth, finalHeight, ESP.getFreeHeap(), ESP.getFreePsram());
+        #else
+        Serial.printf("[%s Sprite] FAILED to create %dx%d.\n", objectName, finalWidth, finalHeight);
+        #endif
+    }
+  }
+  
+  // Safely delete a sprite.
+  static void safeDeleteSprite(TFT_eSprite& sprite, const char* objectName) {
+    if (sprite.getPointer() != nullptr) { 
+      #ifdef ESP32
+      uint32_t heapBefore = ESP.getFreeHeap();
+      uint32_t psramBefore = ESP.getFreePsram();
+      Serial.printf("[%s Sprite] Deleting sprite %dx%d. Heap before: %u, PSRAM before: %u\n", 
+                    objectName, sprite.width(), sprite.height(), heapBefore, psramBefore);
+      #else
+      Serial.printf("[%s Sprite] Deleting sprite %dx%d\n", objectName, sprite.width(), sprite.height());
+      #endif
+      
+      sprite.deleteSprite(); 
       
       #ifdef ESP32
-      bool inPsram = SpriteManager::isInPSRAM(sprite);
-      Serial.printf("[%s Sprite] Created %dx%d. PSRAM used: %s. Heap: %u, PSRAM free: %u\n", 
-                    objectName, size, size, 
-                    inPsram ? "Yes" : "No", 
-                    ESP.getFreeHeap(), ESP.getFreePsram());
-      
-      // If not in PSRAM when it should be, we might have memory issues
-      if (!inPsram && ESP.getFreePsram() > requiredMem) {
-        Serial.printf("[%s Sprite] WARNING: Sprite not in PSRAM despite available memory\n", objectName);
-      }
+      Serial.printf("[%s Sprite] After delete. Heap: %u, PSRAM: %u\n", 
+                    objectName, ESP.getFreeHeap(), ESP.getFreePsram());
       #else
-      Serial.printf("[%s Sprite] Created %dx%d.\n", objectName, size, size);
+      Serial.printf("[%s Sprite] After delete.\n", objectName);
       #endif
     } else {
-      // Creation failed - try to handle gracefully
-      if (sprite.width() > 0 || sprite.height() > 0) {
-        // If dimensions are non-zero but creation "failed", try to delete
-        sprite.deleteSprite();
-      }
-      
-      #ifdef ESP32
-      Serial.printf("[%s Sprite] FAILED to create %dx%d. Heap: %u, PSRAM free: %u\n", 
-                    objectName, size, size, ESP.getFreeHeap(), ESP.getFreePsram());
-      #else
-      Serial.printf("[%s Sprite] FAILED to create %dx%d.\n", objectName, size, size);
-      #endif
+      Serial.printf("[%s Sprite] safeDeleteSprite: No active buffer to delete.\n", objectName);
     }
   }
   
-  // Safely delete a sprite with proper error handling
-  static void safeDeleteSprite(TFT_eSprite& sprite, const char* objectName) {
-    if (sprite.width() > 0 || sprite.height() > 0) {
-      #ifdef ESP32
-      Serial.printf("[%s Sprite] Deleting sprite %dx%d\n", 
-                    objectName, sprite.width(), sprite.height());
-      try {
-      #endif
-        sprite.deleteSprite();
-      #ifdef ESP32
-      } catch (...) {
-        Serial.printf("[%s Sprite] Exception during sprite deletion\n", objectName);
-      }
-      Serial.printf("[%s Sprite] After delete - Heap: %u, PSRAM: %u\n", 
-                    objectName, ESP.getFreeHeap(), ESP.getFreePsram());
-      #endif
-    }
-  }
-  
-  // Check if a sprite buffer is in PSRAM
   static bool isInPSRAM(TFT_eSprite& sprite) {
+    #ifdef ESP32
     uint8_t* spriteBuffer = (uint8_t*)sprite.getPointer();
     if (spriteBuffer != nullptr) {
-      #ifdef ESP32
       return esp_ptr_external_ram(spriteBuffer);
-      #else
-      return false;
-      #endif
     }
-    return false;
+    #endif
+    return false; 
   }
 };
 

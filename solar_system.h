@@ -113,14 +113,16 @@ void drawSolarSystem() {
         if (!solarSystemSpritesCreated) {
             // Create sun sprite with padding for corona
             int sunSpriteSize = sunRadius * 2 + 8;
-            SpriteManager::createObjectSprite(sunSprite, sunSpriteSize, "SolarSystem-Sun");
+            SpriteManager::safeDeleteSprite(sunSprite, "SolarSystem-Sun"); // Delete before creating new
+            SpriteManager::createObjectSprite(sunSprite, sunSpriteSize, "SolarSystem-Sun", true);
             
             // Create planet sprites
             for (int i = 0; i < 4; i++) {
                 int planetSpriteSize = maxPlanetRadius * 2 + 4;
-                SpriteManager::createObjectSprite(planetSprites[i], planetSpriteSize, "SolarSystem-Planet");
+                SpriteManager::safeDeleteSprite(planetSprites[i], "SolarSystem-Planet"); // Delete before creating new
+                SpriteManager::createObjectSprite(planetSprites[i], planetSpriteSize, "SolarSystem-Planet", true);
             }
-            solarSystemSpritesCreated = true;
+            solarSystemSpritesCreated = (sunSprite.width() > 0); // Check sun sprite as representative
             forceRedrawSun = true;
             forceRedrawPlanets = true;
         }
@@ -236,7 +238,7 @@ void drawSolarSystem() {
     prevSunRadius = sunRadius; // Store radius for next frame's erase
 
     // Draw faint orbit paths (EVERY FRAME)
-    for (int i = 0; i < 4; i++) {
+    for (int i = 0; i < 2; i++) {
         int currentOrbitDrawRadius = baseOrbitRadii[i] * objectScale; // Apply object-specific scale
         for (int j = 0; j < 360; j += 5) { // Draw orbit as series of pixels
             float angle_rad = j * PI / 180.0f;
@@ -251,7 +253,7 @@ void drawSolarSystem() {
 
     // Update and draw planets using sprite buffers
     // Always redraw planets since they're moving
-    for (int i = 0; i < 4; i++) {
+    for (int i = 0; i < 2; i++) {
         int currentPlanetOrbitRadius = baseOrbitRadii[i] * objectScale; // Actual orbit radius for positioning
         int planetX = centerX + round(currentPlanetOrbitRadius * cos(t * speeds[i]));
         int planetY = centerY + round(currentPlanetOrbitRadius * sin(t * speeds[i]));
@@ -461,7 +463,7 @@ void eraseSolarSystem() {
         // Free sprite resources
         if (solarSystemSpritesCreated) {
             SpriteManager::safeDeleteSprite(sunSprite, "SolarSystem-Sun");
-            for (int i = 0; i < 4; i++) {
+            for (int i = 0; i < 2; i++) {
                 SpriteManager::safeDeleteSprite(planetSprites[i], "SolarSystem-Planet");
             }
             solarSystemSpritesCreated = false;
@@ -471,7 +473,7 @@ void eraseSolarSystem() {
 
         // Reset tracking variables
         prevSunRadius = 0;
-        for (int i = 0; i < 4; i++) {
+        for (int i = 0; i < 2; i++) {
             // Clear orbit paths
             tft.fillCircle(objectX, objectY, prevOrbitRadii[i] + 1, BG_COLOR);
             prevOrbitRadii[i] = 0;

@@ -3,10 +3,11 @@
 
 #include <TFT_eSPI.h>
 #include <Arduino.h>
+#include <vector>
 #include "quiz_popup.h"
+#include "story_mode.h" // Added include for story_mode.h to access STORY_STOPS_DATA and StoryStop struct
 
 extern QuizPopupState quizPopupState;
-#include "story_mode.h" // For StoryStop and draw functions
 
 // --- Data Structures ---
 
@@ -36,12 +37,15 @@ static String lastFact = "";
 static bool uiInitialized = false;
 
 // Add tracking for shown objects
-static bool objectsShownInQuiz[STORY_STOPS_COUNT] = {false};
-static int objectsRemainingInQuiz = STORY_STOPS_COUNT;
+extern TFT_eSprite quizSprite;
+extern bool quizSpriteCreated;
 
-void resetQuizObjectTracking() {
+static bool objectsShownInQuiz[STORY_STOPS_DATA_COUNT] = {false};
+static int objectsRemainingInQuiz = STORY_STOPS_DATA_COUNT;
+
+inline void resetQuizObjectTracking() {
     memset(objectsShownInQuiz, false, sizeof(objectsShownInQuiz));
-    objectsRemainingInQuiz = STORY_STOPS_COUNT;
+    objectsRemainingInQuiz = STORY_STOPS_DATA_COUNT;
 }
 
 // --- Function Prototypes ---
@@ -63,39 +67,52 @@ void shuffle4(int arr[4]) {
 
 // Pick a random quiz object and 3 distractors
 void setupQuizOptions() {
-    int total = STORY_STOPS_COUNT;
-    // Defensive: ensure at least 4 options available
-    if (total < 4) return;
+    quizState.correctIndex = -1;
+    quizState.answeredCorrectly = false;
+    quizState.showHint = false;
 
-    // Reset tracking if all objects have been shown
+    // STORY_STOPS_DATA and STORY_STOPS_DATA_COUNT are available via #include "story_mode.h"
+    // extern const StoryStop STORY_STOPS_DATA[]; // Removed redundant extern
+    // extern const int STORY_STOPS_DATA_COUNT; // Removed redundant extern
+
+    int total = STORY_STOPS_DATA_COUNT;
     if (objectsRemainingInQuiz == 0) {
         resetQuizObjectTracking();
     }
 
-    // Pick correct answer that hasn't been shown yet
-    int correctIdx;
-    do {
+    int correctIdx = -1;
+    if (objectsRemainingInQuiz > 0) {
+        do {
+            correctIdx = random(total);
+        } while (objectsShownInQuiz[correctIdx]);
+        objectsShownInQuiz[correctIdx] = true;
+        objectsRemainingInQuiz--;
+        quizState.quizObjectIndex = correctIdx;
+    } else {
+        // Handle case where no objects are remaining, though reset should prevent this.
+        // For safety, pick a random one if this state is ever reached.
         correctIdx = random(total);
-    } while (objectsShownInQuiz[correctIdx]);
+        quizState.quizObjectIndex = correctIdx;
+    }
 
-    // Mark this object as shown
-    objectsShownInQuiz[correctIdx] = true;
-    objectsRemainingInQuiz--;
-    quizState.quizObjectIndex = correctIdx;
+    // Declare the 'used' array before its first use.
+    int used[STORY_STOPS_DATA_COUNT] = {0};
 
     // Fill options array with correct answer and 3 unique distractors
     int opt[4];
     opt[0] = correctIdx;
-    int used[STORY_STOPS_COUNT] = {0};
-    used[correctIdx] = 1;
-    
-    int count = 1;
-    while (count < 4) {
-        int idx = random(total);
-        if (!used[idx]) {
-            opt[count++] = idx;
-            used[idx] = 1;
-        }
+    // Ensure correctIdx is a valid index for 'used' before this assignment
+    if (correctIdx >= 0 && correctIdx < STORY_STOPS_DATA_COUNT) {
+        used[correctIdx] = 1;
+    }
+
+    for (int i = 1; i < 4; i++) {
+        int didx;
+        do {
+            didx = random(total);
+        } while (used[didx]);
+        opt[i] = didx;
+        used[didx] = 1;
     }
 
     // Shuffle options
@@ -120,12 +137,41 @@ void startQuiz() {
     resetQuizObjectTracking();
     setupQuizOptions();
     quizPopupState.active = false;
+
+    // Create quiz sprite
+    if (!quizSpriteCreated) {
+        SpriteManager::safeDeleteSprite(quizSprite, "QuizSprite"); 
+
+        int quizSpriteWidth = SCREEN_WIDTH / 2; 
+        int quizSpriteHeight = SCREEN_HEIGHT / 2;
+        // Prefer HEAP for this test.
+        SpriteManager::createObjectSprite(quizSprite, quizSpriteWidth, quizSpriteHeight, "QuizSprite", false); 
+
+        if (quizSprite.width() > 0 && quizSprite.height() > 0) { 
+            quizSpriteCreated = true;
+        } else {
+            quizSpriteCreated = false;
+            Serial.println("QuizSprite creation reported failure by SpriteManager or resulted in 0 dimension.");
+        }
+    }
+    
+    if (quizSpriteCreated) {
+        quizSprite.fillSprite(BG_COLOR); // Initial fill
+    }
+
     tft.fillScreen(BG_COLOR);
     uiInitialized = false;
     updateQuiz();
 }
 
 void updateQuiz() {
+    // if (!quizSpriteCreated) return; // Temporarily allow drawing even if sprite failed for debugging
+
+    // Get the current quiz object details
+    const StoryStop& obj = STORY_STOPS_DATA[quizState.quizObjectIndex];
+
+    // quizSprite.fillSprite(TFT_BLACK); // Temporarily disable drawing to sprite
+
     // Set object position first
     objectX = SCREEN_WIDTH / 2;
     int objectOffsetY = SCREEN_HEIGHT / 8;
@@ -167,8 +213,7 @@ void updateQuiz() {
     }
 
     // Draw the celestial object
-    const StoryStop& obj = storyStops[quizState.quizObjectIndex];
-    obj.drawFunction();
+    obj.drawFunction(); // <<<< Temporarily commented out for debugging reboot
 
     // Calculate selection box position
     int boxMargin = SCREEN_WIDTH / 16;
@@ -203,7 +248,7 @@ void updateQuiz() {
     }
 
     // Draw option label
-    String optionLabel = storyStops[quizState.optionIndices[quizState.selectedIndex]].name;
+    String optionLabel = STORY_STOPS_DATA[quizState.optionIndices[quizState.selectedIndex]].name;
     // Glow effect
     tft.setTextDatum(MC_DATUM);
     tft.setTextSize(2);
@@ -250,10 +295,10 @@ void updateQuiz() {
 
     // Handle popup if needed
     if (quizState.answeredCorrectly) {
-        setQuizPopupFact(storyStops[quizState.quizObjectIndex].fact);
+        setQuizPopupFact(STORY_STOPS_DATA[quizState.quizObjectIndex].fact);
         showQuizPopup(true);
     } else if (quizState.showHint) {
-        setQuizPopupFact(storyStops[quizState.quizObjectIndex].fact);
+        setQuizPopupFact(STORY_STOPS_DATA[quizState.quizObjectIndex].fact);
         showQuizPopup(false);
     }
 }

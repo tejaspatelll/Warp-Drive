@@ -52,6 +52,7 @@
 #include "nebula.h" // Add nebula header
 #include "solar_system.h" // Add solar system header
 #include "galaxy_and_asteroid.h" // Add galaxy and asteroid field header
+#include "sprite_manager.h" // Ensure SpriteManager is included for safeDeleteSprite
 #include <algorithm> // Add at the top with other includes
 //#include <psram.h> // Include for PSRAM allocation
 
@@ -389,11 +390,32 @@ bool stationSpriteCreated = false;  // Flag to track if sprite is created
 TFT_eSprite binaryStarSprite = TFT_eSprite(&tft);
 bool binaryStarSpriteCreated = false;
 
+// Definitions for Quiz Mode sprites (were extern in quiz_mode.h)
+TFT_eSprite quizSprite = TFT_eSprite(&tft); // Definition for quizSprite
+bool quizSpriteCreated = false;            // Definition for quizSpriteCreated
+
+// Create an instance of the StoryMode class
+StoryMode storyModeManager; // Default constructor will be called
+
 void setup() {
   pinMode(VIBRATION_PIN, OUTPUT);
   digitalWrite(VIBRATION_PIN, LOW); // Ensure vibration is off initially
   Serial.begin(9600);  // Move Serial.begin to top for debugging
   
+  Serial.println("--- PSRAM CHECK START ---");
+  #if defined(ESP32) && defined(BOARD_HAS_PSRAM)
+  if (psramInit()) {
+    Serial.printf("PSRAM initialized successfully. Total PSRAM: %u, Free PSRAM: %u\n", ESP.getPsramSize(), ESP.getFreePsram());
+  } else {
+    Serial.println("PSRAM initialization FAILED.");
+  }
+  #elif defined(ESP32)
+  Serial.printf("Board might have PSRAM, but psramInit() not explicitly called or BOARD_HAS_PSRAM not defined. Free PSRAM: %u\n", ESP.getFreePsram());
+  #else
+  Serial.println("Not an ESP32 or PSRAM check not configured for this board.");
+  #endif
+  Serial.println("--- PSRAM CHECK END ---");
+
   // Configure pins
   pinMode(TFT_LED, OUTPUT);
   pinMode(BUTTON_PIN, INPUT_PULLUP);
@@ -436,7 +458,8 @@ void setup() {
 // Add this new function to handle system initialization
 void initializeSystem() {
   initializeScaling(); // Initialize scaling factors first
-  tft.setAttribute(PSRAM_ENABLE, true); // Enable PSRAM globally for TFT/sprites
+  // tft.setAttribute(PSRAM_ENABLE, true); // <<<< Temporarily commented out for testing PSRAM issue
+  Serial.printf("Inside initializeSystem, (global tft PSRAM_ENABLE is OFF for this test) - Free PSRAM: %u, Free Heap: %u\n", ESP.getFreePsram(), ESP.getFreeHeap());
   
   // Reset menu buffer data when system initializes
   g_boxY = SCREEN_HEIGHT * 0.25;
@@ -530,7 +553,18 @@ void loop() {
         
       case State::STORY:
         // Handle story mode
-        updateStoryMode();
+        {
+            bool storyShouldExit = storyModeManager.update(potValue, digitalRead(BUTTON_PIN) == LOW);
+            if (storyShouldExit) {
+                // storyModeManager.exit() was already called internally by the update/processInput methods
+                currentState = State::MENU;
+                tft.fillScreen(BG_COLOR); // Ensure screen is cleared before drawing menu
+                drawMenu();
+            } else {
+                // Only update warpFactor if not exiting
+                warpFactor = storyModeManager.getWarpFactor();
+            }
+        }
         break;
         
       case State::WARP:
@@ -1777,6 +1811,9 @@ void processMenuInput() {
         // For Discovery mode, transition to WARP first to trigger discovery
         currentState = State::WARP;
         prevShouldWarp = true; // Set this so next update transitions to DISCOVERY
+      } else if (selectedState == State::STORY) {
+        storyModeManager.init(); // Initialize story mode using the class manager
+        currentState = selectedState; // Set current state to STORY
       } else {
         currentState = selectedState;
       }
@@ -1845,6 +1882,11 @@ void updateQuizMode() {
       quizInitialized = false;
       quizPhase = QUIZ_QUESTION;
       quizPopupState.active = false;
+      if (quizSpriteCreated) { // Delete quiz sprite before going to menu
+          SpriteManager::safeDeleteSprite(quizSprite, "QuizSprite");
+          quizSpriteCreated = false;
+          Serial.println("QuizSprite deleted (popup menu exit).");
+      }
       tft.fillScreen(BG_COLOR);
       currentState = State::MENU;
       drawMenu();
@@ -1881,6 +1923,11 @@ void updateQuizMode() {
       quizInitialized = false;
       quizPhase = QUIZ_QUESTION;
       quizPopupState.active = false;
+      if (quizSpriteCreated) { // Delete quiz sprite before going to menu
+          SpriteManager::safeDeleteSprite(quizSprite, "QuizSprite");
+          quizSpriteCreated = false;
+          Serial.println("QuizSprite deleted (long press exit).");
+      }
       tft.fillScreen(BG_COLOR);
       currentState = State::MENU;
       drawMenu();
@@ -1892,46 +1939,6 @@ void updateQuizMode() {
   }
 }
 
-/**
- * Implementation of Story mode
- */
-void updateStoryMode() {
-  // Check if story mode is initialized
-  if (!storyInitialized) {
-    initStoryMode();
-  }
-  
-  // Process potentiometer input for navigation
-  processStoryInput(potValue);
-  
-  // Update and display current story step
-  updateStoryStep();
-  
-  // Keep stars twinkling in background
-  updateStars();
-  
-  // Check for button press to return to menu
-  static unsigned long lastButtonTime = 0;
-  static bool buttonPressed = false;
-  
-  if (digitalRead(BUTTON_PIN) == LOW && !buttonPressed) {
-    unsigned long currentTime = millis();
-    if (currentTime - lastButtonTime > 300) { // Debounce
-      buttonPressed = true;
-      lastButtonTime = currentTime;
-      
-      // Reset story mode state
-      storyInitialized = false;
-      
-      // Return to menu
-      currentState = State::MENU;
-      tft.fillScreen(BG_COLOR);
-      drawMenu();
-    }
-  } else if (digitalRead(BUTTON_PIN) == HIGH) {
-    buttonPressed = false;
-  }
-}
 // Helper functions to extract 8-bit R, G, B from 16-bit TFT_eSPI color
 uint8_t extract_red(uint16_t color) {
     return (color & 0xF800) >> 8; // Extract red component (5 bits shifted)

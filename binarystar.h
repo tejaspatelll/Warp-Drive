@@ -30,6 +30,8 @@ extern Star stars[];
 extern TFT_eSprite binaryStarSprite;
 extern bool binaryStarSpriteCreated;
 
+static bool forceRedrawBinaryStar = true; // Flag to force redraw of binary star sprite content
+
 // Forward declare functions from main sketch
 extern int scale_i(int v);
 extern float scale_f(float v);
@@ -142,8 +144,8 @@ void drawBinaryStar() {
   prevBinaryStarSize = calculatedSpriteSize * 1.2f;
   
   #ifdef ESP32
-  Serial.printf("[BinaryStar] Scale: %.2f, Stars: %d/%d, Orbits: %d/%d, Sprite: %d\n", 
-               scale, radius1, radius2, orbitRadius1, orbitRadius2, calculatedSpriteSize);
+  //Serial.printf("[BinaryStar] Scale: %.2f, Stars: %d/%d, Orbits: %d/%d, Sprite: %d\n", 
+  //             scale, radius1, radius2, orbitRadius1, orbitRadius2, calculatedSpriteSize);
   #endif
   
   if (!binaryStarSpriteCreated) {
@@ -165,8 +167,13 @@ void drawBinaryStar() {
       binaryStarSprite.deleteSprite();
     }
     
-    // Create the sprite with the calculated size
-    SpriteManager::createObjectSprite(binaryStarSprite, calculatedSpriteSize, "BinaryStar");
+    // Create sprite if not already done or if size changed significantly
+    if (!binaryStarSpriteCreated || abs(calculatedSpriteSize - binaryStarSprite.width()) > 4 ) {
+        SpriteManager::safeDeleteSprite(binaryStarSprite, "BinaryStar");
+        SpriteManager::createObjectSprite(binaryStarSprite, calculatedSpriteSize, "BinaryStar", true);
+        binaryStarSpriteCreated = (binaryStarSprite.width() > 0 && binaryStarSprite.height() > 0);
+        forceRedrawBinaryStar = true;
+    }
     
     // Verify sprite creation success by checking dimensions
     if (binaryStarSprite.width() > 0 && binaryStarSprite.height() > 0) {
@@ -279,7 +286,7 @@ void drawBinaryStar() {
     // Check memory before push
     if (ESP.getFreeHeap() < 5000) {
       Serial.println("[BinaryStar] Memory critically low before push, using direct draw");
-      binaryStarSprite.deleteSprite();
+      SpriteManager::safeDeleteSprite(binaryStarSprite, "BinaryStar");
       binaryStarSpriteCreated = false;
       drawBinaryStarDirect();
       return;
@@ -294,7 +301,7 @@ void drawBinaryStar() {
     // Check if push caused memory issues
     if (ESP.getFreeHeap() < 4000) {
       Serial.println("[BinaryStar] Memory critically low after push, freeing resources");
-      binaryStarSprite.deleteSprite();
+      SpriteManager::safeDeleteSprite(binaryStarSprite, "BinaryStar");
       binaryStarSpriteCreated = false;
     }
     #endif

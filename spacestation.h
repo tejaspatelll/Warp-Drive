@@ -39,6 +39,8 @@ extern Star stars[];
 extern TFT_eSprite stationSprite;
 extern bool stationSpriteCreated;
 
+static bool forceRedrawStation = true; // Flag to force redraw of station sprite content
+
 // Helper function declarations
 extern int scale_i(int v);
 
@@ -87,15 +89,12 @@ void drawSpaceStation() {
     Serial.printf("Total size: %dx%d, Diagonal: %.1f, Final sprite size: %d\n", 
                   totalWidth, totalHeight, diagonal, spriteSize);
     
-    // Create a sprite using SpriteManager
-    SpriteManager::createObjectSprite(stationSprite, spriteSize, "SpaceStation");
-
-    if (stationSprite.width() > 0 && stationSprite.height() > 0) { // Check both width and height
-      stationSpriteCreated = true;
-      // setColorDepth was moved to SpriteManager
-    } else {
-      stationSpriteCreated = false;
-      Serial.println("SpaceStation sprite creation effectively failed (width/height 0).");
+    // Create sprite if not already done (or if it needs recreation due to size change)
+    if (!stationSpriteCreated) {
+        SpriteManager::safeDeleteSprite(stationSprite, "SpaceStation"); // Delete before creating new
+        SpriteManager::createObjectSprite(stationSprite, spriteSize, "SpaceStation", true);
+        stationSpriteCreated = (stationSprite.width() > 0 && stationSprite.height() > 0);
+        forceRedrawStation = true; // Force redraw after creation
     }
   }
   
@@ -318,10 +317,10 @@ void drawSpaceStation() {
     
     // Check if we've run into low memory issues
     int freeHeap = ESP.getFreeHeap();
-    Serial.printf("Free heap after drawing: %d bytes\n", freeHeap);
+  //  Serial.printf("Free heap after drawing: %d bytes\n", freeHeap);
     if (freeHeap < 8000) {  // Use a higher threshold to be safe
       Serial.println("Low memory detected, freeing sprite resources");
-      stationSprite.deleteSprite();
+      SpriteManager::safeDeleteSprite(stationSprite, "SpaceStation");
       stationSpriteCreated = false;
     }
   } else {
@@ -342,7 +341,7 @@ void drawSpaceStation() {
     Serial.println("Low memory detected, freeing sprite resources");
     // Free sprite and try direct drawing next time
     if (stationSpriteCreated) {
-      stationSprite.deleteSprite();
+      SpriteManager::safeDeleteSprite(stationSprite, "SpaceStation");
       stationSpriteCreated = false;
     }
   }
@@ -482,7 +481,7 @@ void drawSpaceStationDirect() {
 void eraseSpaceStation() {
   if (stationSpriteCreated) {
     // Free sprite resources
-    stationSprite.deleteSprite();
+    SpriteManager::safeDeleteSprite(stationSprite, "SpaceStation");
     stationSpriteCreated = false;
     #ifdef ESP32
     Serial.printf("Free heap after sprite deletion: %d bytes\n", ESP.getFreeHeap());
