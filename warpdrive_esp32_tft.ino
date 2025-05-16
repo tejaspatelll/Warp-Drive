@@ -54,6 +54,7 @@
 #include "galaxy_and_asteroid.h" // Add galaxy and asteroid field header
 #include "sprite_manager.h" // Ensure SpriteManager is included for safeDeleteSprite
 #include <algorithm> // Add at the top with other includes
+#include <FastLED.h> // Added for LED animations
 //#include <psram.h> // Include for PSRAM allocation
 
 // Define globals for quiz mode
@@ -61,8 +62,11 @@ bool quizActive = false;
 #include <esp_sleep.h>
 #include <driver/rtc_io.h>
 
+// Include LED animations header
+#include "led_animations.h"
+
 // Power management defines
-#define BUTTON_PIN 1   // Make sure this matches your actual button pin
+#define BUTTON_PIN 3   // Make sure this matches your actual button pin
 #define LONG_PRESS_TIME 3000 // Time in milliseconds for a long press to power off
 #define SHORT_PRESS_TIME 50  // Minimum time for a valid short press
 
@@ -336,6 +340,12 @@ int currentMenuItem = 0;
 void typewriterText(const char* text, int delayMs);
 void initializeAccretionParticle(int index, int centerX, int centerY);
 
+// Forward declarations for LED functions
+void setLedModeMenu(int currentSelection, int numItems);
+void setLedModeQuiz(bool answerCorrect, bool waitingForAnswer);
+void setLedModeOff();
+void setLedModeStory();
+
 // Add new variable to track power state
 bool isPoweredOn = true;  // Start powered on
 
@@ -382,17 +392,21 @@ inline float scaleY_f(float y) { return y * scaleY; }
 inline int scale_i(int v) { return round(v * scaleFactor); }
 inline float scale_f(float v) { return v * scaleFactor; }
 
-// Add sprite for double-buffered space station rendering
-TFT_eSprite stationSprite = TFT_eSprite(&tft);  // Sprite for space station
-bool stationSpriteCreated = false;  // Flag to track if sprite is created
+// ---- START CHANGE ----
+// Replace TFT_eSprite globals with SpriteHandles
+// TFT_eSprite stationSprite = TFT_eSprite(&tft);  // Sprite for space station
+// bool stationSpriteCreated = false;  // Flag to track if sprite is created
+SpriteHandle stationHandle = {0}; // Initialize with invalid ID 0
 
-// Add sprite for binary star rendering
-TFT_eSprite binaryStarSprite = TFT_eSprite(&tft);
-bool binaryStarSpriteCreated = false;
+// TFT_eSprite binaryStarSprite = TFT_eSprite(&tft);
+// bool binaryStarSpriteCreated = false;
+SpriteHandle binaryStarHandle = {0};
 
 // Definitions for Quiz Mode sprites (were extern in quiz_mode.h)
-TFT_eSprite quizSprite = TFT_eSprite(&tft); // Definition for quizSprite
-bool quizSpriteCreated = false;            // Definition for quizSpriteCreated
+// TFT_eSprite quizSprite = TFT_eSprite(&tft); // Definition for quizSprite
+// bool quizSpriteCreated = false;            // Definition for quizSpriteCreated
+SpriteHandle quizHandle = {0};
+// ---- END CHANGE ----
 
 // Create an instance of the StoryMode class
 StoryMode storyModeManager; // Default constructor will be called
@@ -477,6 +491,14 @@ void initializeSystem() {
   initColors();
   tft.fillScreen(COLOR_BG);
   
+  // Initialize LEDs
+  setupLeds();
+  
+  // ---- START CHANGE ----
+  // Initialize the new SpriteManager
+  SpriteManager::begin();
+  // ---- END CHANGE ----
+  
   // Initialize potentiometer
   pinMode(POT_PIN, INPUT);
   randomSeed(analogRead(POT_PIN));
@@ -498,6 +520,7 @@ void initializeSystem() {
   
   // Draw menu screen
   drawMenu();
+  setLedModeMenu(currentMenuItem, MENU_ITEMS); // Initialize LED for menu
   
   // Initialize object tracking
   memset(objectsShown, false, sizeof(objectsShown));
@@ -537,6 +560,9 @@ void loop() {
     
     readPotentiometer();
     
+    // Update LED effects continuously
+    updateLedEffects();
+    
     // Handle different states
     switch (currentState) {
       case State::MENU:
@@ -544,11 +570,13 @@ void loop() {
         processMenuInput();
         // Update background stars
         updateStars();
+        // setLedModeMenu(currentMenuItem, MENU_ITEMS); // Already set when menu is drawn
         break;
         
       case State::QUIZ:
         // Handle quiz mode
         updateQuizMode();
+        // LED mode for quiz is set within updateQuizMode
         break;
         
       case State::STORY:
@@ -558,11 +586,13 @@ void loop() {
             if (storyShouldExit) {
                 // storyModeManager.exit() was already called internally by the update/processInput methods
                 currentState = State::MENU;
+                setLedModeMenu(currentMenuItem, MENU_ITEMS); // Set LED for menu
                 tft.fillScreen(BG_COLOR); // Ensure screen is cleared before drawing menu
                 drawMenu();
             } else {
                 // Only update warpFactor if not exiting
                 warpFactor = storyModeManager.getWarpFactor();
+                setLedModeStory(); // Set LED for story mode
             }
         }
         break;
@@ -685,6 +715,7 @@ void processInput() {
         
         // Return to menu with screen clear
         currentState = State::MENU;
+        setLedModeMenu(currentMenuItem, MENU_ITEMS); // Set LED for menu
         tft.fillScreen(BG_COLOR);
         delay(10); // Small delay to ensure clean screen
         drawMenu();
@@ -708,29 +739,24 @@ void processInput() {
       #endif
       
       // In case of binary star, explicitly clean it up first with extra clearing
-      if (currentObject == CelestialObject::BINARY_STAR) {
-        #ifdef ESP32
-        Serial.println("Extra cleanup for binary star before warp");
-        #endif
-        
-        // First clear the screen area
-        int clearSize = 160; // Large enough to cover any binary star
-        tft.fillRect(objectX - clearSize/2, objectY - clearSize/2, clearSize, clearSize, BG_COLOR);
-        
-        // Now delete the sprite
-        if (binaryStarSpriteCreated) {
-          SpriteManager::safeDeleteSprite(binaryStarSprite, "BinaryStar");
-          binaryStarSpriteCreated = false;
-          delay(10); // Allow memory management to occur
-        }
+      if (currentObject == CelestialObject::BINARY_STAR && binaryStarHandle.id != 0) {
+          #ifdef ESP32
+          Serial.println("[Refactor] Extra screen clear for binary star before warp");
+          #endif
+          int clearSize = 160; // Large enough to cover any binary star
+          tft.fillRect(objectX - clearSize/2, objectY - clearSize/2, clearSize, clearSize, BG_COLOR);
+          // Sprite destruction handled by eraseCelestialObject -> cleanupAllCelestialObjectSprites below
       }
       
       // Now do the standard cleanup for all objects
-      eraseCelestialObject(); // Erases from screen and individual sprite
+      eraseCelestialObject(); // This should now use SpriteManager::destroy via cleanupAllCelestialObjectSprites
       showingCelestialObject = false;
       
       // Do one final check for any lingering sprites
-      cleanupAllCelestialObjectSprites();
+      // cleanupAllCelestialObjectSprites(); // This is now called inside eraseCelestialObject potentially, or needs adjustment
+      // Let's rely on eraseCelestialObject to handle its specific sprite.
+      // A broader cleanup might be needed if eraseCelestialObject doesn't cover everything.
+      // For now, assume eraseCelestialObject handles its own sprite.
       
       // Allow some time for memory operations to complete
       delay(20);
@@ -780,6 +806,7 @@ void processInput() {
     // We're exiting warp mode
     Serial.println("Exiting WARP mode to DISCOVERY");
     
+    setLedModeOff(); // Turn off LEDs or set to a discovery mode effect if desired
     // Transition from WARP to DISCOVERY
     currentState = State::DISCOVERY;
 
@@ -802,7 +829,18 @@ void processInput() {
 
     if (showingCelestialObject) {
       // IMPORTANT: Clean up any sprites from a previous discovery cycle BEFORE selecting/drawing a new one.
-      cleanupAllCelestialObjectSprites(); 
+      // ---- START CHANGE ----
+      // Use the new manager's destroyAll or specific destroy calls
+      // cleanupAllCelestialObjectSprites(); 
+      // Let's destroy specific known handles. A more robust system might track all discovery handles.
+      SpriteManager::destroy(stationHandle); stationHandle = {0};
+      SpriteManager::destroy(binaryStarHandle); binaryStarHandle = {0};
+      // Add destroys for other sprites if they exist (nebula, planet etc)
+      #ifdef ESP32
+      Serial.println("[Refactor] Explicitly destroying known celestial handles before new discovery.");
+      SpriteManager::dumpReport(); // See memory state before creating new
+      #endif
+      // ---- END CHANGE ----
 
       // Check if we need to reset our tracking (all objects have been shown)
       if (objectsRemaining == 0) {
@@ -887,6 +925,13 @@ void processInput() {
         objectScale = random(240, 350) / 100.0f; 
         Serial.printf("Object %d selected. Position: (%d, %d), Scale: %.2f\n", (int)currentObject, objectX, objectY, objectScale);
       }
+      // ---- START CHANGE ----
+      // Optional: Add a memory report after selecting an object, before drawing it
+      #ifdef ESP32
+      Serial.println("[Refactor] Memory status after object selection, before drawing:");
+      SpriteManager::dumpReport();
+      #endif
+      // ---- END CHANGE ----
     } else {
        // No object selected this time
        Serial.println("No celestial object selected this cycle.");
@@ -1758,6 +1803,7 @@ void processMenuInput() {
   // Only update if selection changed
   if (mappedItem != lastMenuItem) {
     currentMenuItem = mappedItem;
+    setLedModeMenu(currentMenuItem, MENU_ITEMS); // Update LED for menu selection change
     
     // Haptic feedback for menu navigation
     extern bool hapticOverrideActive;
@@ -1810,12 +1856,19 @@ void processMenuInput() {
       if (selectedState == State::DISCOVERY) {
         // For Discovery mode, transition to WARP first to trigger discovery
         currentState = State::WARP;
+        setLedModeOff(); // Or a specific warp LED effect
         prevShouldWarp = true; // Set this so next update transitions to DISCOVERY
       } else if (selectedState == State::STORY) {
         storyModeManager.init(); // Initialize story mode using the class manager
-        currentState = selectedState; // Set current state to STORY
+        currentState = selectedState;
+        setLedModeOff(); // Or a specific story LED effect
+      } else if (selectedState == State::QUIZ) {
+        currentState = selectedState;
+        // LED mode for quiz will be set in updateQuizMode / startQuiz
+        // setLedModeQuiz(false, true); // Initial state for quiz LEDs
       } else {
         currentState = selectedState;
+        setLedModeOff(); // Default off for other states for now
       }
     }
   } else if (digitalRead(BUTTON_PIN) == HIGH) {
@@ -1843,6 +1896,7 @@ void updateQuizMode() {
     startQuiz();
     quizPhase = QUIZ_QUESTION;
     quizInitialized = true;
+    setLedModeQuiz(false, true); // Initial state for quiz LEDs: no answer yet, waiting for answer
   }
 
   // Read button
@@ -1869,26 +1923,30 @@ void updateQuizMode() {
         setupQuizOptions();
         quizState.answeredCorrectly = false;
         quizState.showHint = false;
+        setLedModeQuiz(false, true); // Reset for next question
         tft.fillScreen(BG_COLOR);
         updateQuiz();
       } else {
         // Try Again: just redraw quiz
         quizState.answeredCorrectly = false;
         quizState.showHint = false;
+        setLedModeQuiz(false, true); // Reset for try again
         tft.fillScreen(BG_COLOR);
         updateQuiz();
       }
     } else if (popupResult == 2) { // Right button: Menu
+      uiInitialized = false; // Reset UI flag before leaving quiz
       quizInitialized = false;
       quizPhase = QUIZ_QUESTION;
       quizPopupState.active = false;
-      if (quizSpriteCreated) { // Delete quiz sprite before going to menu
-          SpriteManager::safeDeleteSprite(quizSprite, "QuizSprite");
-          quizSpriteCreated = false;
-          Serial.println("QuizSprite deleted (popup menu exit).");
+      if (quizHandle.id != 0) { // Use handle to check validity
+          SpriteManager::destroy(quizHandle);
+          quizHandle = {0}; // Invalidate handle
+          Serial.println("[Quiz] Quiz sprite destroyed (popup menu exit).");
       }
       tft.fillScreen(BG_COLOR);
       currentState = State::MENU;
+      setLedModeMenu(currentMenuItem, MENU_ITEMS); // Set LED for menu
       drawMenu();
       return;
     }
@@ -1906,8 +1964,10 @@ void updateQuizMode() {
       // If answered, show popup
       if (quizState.answeredCorrectly) {
         showQuizPopup(true); // Correct
+        setLedModeQuiz(true, false); // Correct answer, not waiting
       } else if (quizState.showHint) {
         showQuizPopup(false); // Wrong
+        setLedModeQuiz(false, false); // Incorrect answer, not waiting
       }
       break;
     case QUIZ_RESULT_POPUP:
@@ -1923,13 +1983,14 @@ void updateQuizMode() {
       quizInitialized = false;
       quizPhase = QUIZ_QUESTION;
       quizPopupState.active = false;
-      if (quizSpriteCreated) { // Delete quiz sprite before going to menu
-          SpriteManager::safeDeleteSprite(quizSprite, "QuizSprite");
-          quizSpriteCreated = false;
-          Serial.println("QuizSprite deleted (long press exit).");
+      if (quizHandle.id != 0) { // Use handle to check validity
+          SpriteManager::destroy(quizHandle);
+          quizHandle = {0}; // Invalidate handle
+          Serial.println("[Quiz] Quiz sprite destroyed (long press exit).");
       }
       tft.fillScreen(BG_COLOR);
       currentState = State::MENU;
+      setLedModeMenu(currentMenuItem, MENU_ITEMS); // Set LED for menu
       drawMenu();
       pressStart = 0;
       return;
@@ -1953,11 +2014,14 @@ uint8_t extract_blue(uint16_t color) {
 // Function to clean up all celestial object sprites
 void cleanupAllCelestialObjectSprites() {
   #ifdef ESP32
-  Serial.println("Cleaning up all celestial object sprites");
+  Serial.println("[Refactor] Cleaning up specific celestial object handles.");
   Serial.printf("Before cleanup - Heap: %u, PSRAM: %u\n", ESP.getFreeHeap(), ESP.getFreePsram());
+  SpriteManager::dumpReport(); // Show detailed sprite status
   #endif
   
-  // Space station sprite cleanup
+  // ---- START CHANGE ----
+  // Use SpriteManager::destroy for known handles instead of flags
+  /* Old logic:
   if (stationSpriteCreated) {
     SpriteManager::safeDeleteSprite(stationSprite, "SpaceStation");
     stationSpriteCreated = false;
@@ -1965,8 +2029,6 @@ void cleanupAllCelestialObjectSprites() {
     Serial.println("Cleaned up station sprite.");
     #endif
   }
-  
-  // Binary star sprite cleanup
   if (binaryStarSpriteCreated) {
     SpriteManager::safeDeleteSprite(binaryStarSprite, "BinaryStar");
     binaryStarSpriteCreated = false;
@@ -1974,18 +2036,30 @@ void cleanupAllCelestialObjectSprites() {
     Serial.println("Cleaned up binary star sprite.");
     #endif
   }
+  */
+  SpriteManager::destroy(stationHandle);
+  stationHandle = {0};
+  SpriteManager::destroy(binaryStarHandle);
+  binaryStarHandle = {0};
+  // Add similar SpriteManager::destroy calls for other celestial object handles if/when they are added
+  // (e.g., nebulaHandle, planetHandle, etc.)
+  // Alternatively, if you know all active sprites *should* be celestial objects,
+  // you could consider using SpriteManager::destroyAll(), but be careful if other
+  // non-celestial sprites might exist.
   
-  // Add similar cleanups for other celestial objects here
-  // e.g., if (nebulaSpriteCreated) { SpriteManager::safeDeleteSprite(nebulaSprite, "Nebula"); nebulaSpriteCreated = false; }
+  // ---- END CHANGE ----
   
   #ifdef ESP32
-  Serial.printf("After cleanup - Heap: %u, PSRAM: %u\n", ESP.getFreeHeap(), ESP.getFreePsram());
+  Serial.println("[Refactor] After cleanup - Memory Status:");
+  SpriteManager::dumpReport(); // Show status after cleanup
   #endif
   
   // Log memory status but don't restart
   #ifdef ESP32
-  if (ESP.getFreeHeap() < 20000 || ESP.getFreePsram() < 100000) {
-    Serial.println("Memory low after cleanup - consider optimizing memory usage");
+  // Check using SpriteManager's report or direct ESP calls
+  // This check might be less necessary now with the manager handling memory better
+  if (ESP.getFreeHeap() < 20000 || ESP.getFreePsram() < 100000) { 
+    Serial.println("WARN: Memory low after cleanup - check SpriteManager report for details.");
     delay(50); // Small delay to allow Serial to complete
   }
   #endif

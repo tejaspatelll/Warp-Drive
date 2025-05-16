@@ -5,6 +5,8 @@
 #include <TFT_eSPI.h>
 #include <Arduino.h> // For PI constant and other math functions
 #include "sprite_manager.h"
+#include "star.h"
+#include "led_animations.h" // Add this include for LED control
 
 // Make sure POT_PIN is available from main file (warpdrive_esp32_tft.ino)
 #ifndef POT_PIN
@@ -24,7 +26,7 @@ extern const int SCREEN_HEIGHT;
 // These are dependencies that the StoryMode class will need
 extern TFT_eSPI tft;
 extern uint16_t BG_COLOR;
-extern void drawStar(const struct Star& star); // Assuming Star struct is defined elsewhere or included
+extern void drawStar(); // Modified to match void (*)() signature
 extern void drawPlanet();
 extern void drawNebula();
 extern void drawGalaxy();
@@ -147,12 +149,8 @@ const int STORY_STOPS_DATA_COUNT = sizeof(STORY_STOPS_DATA) / sizeof(STORY_STOPS
 class StoryMode {
 public:
     StoryMode() : 
-        storyTitleSprite(&tft), 
-        storyNarrationSprite(&tft), 
-        storyTitleSpriteCreated(false), 
-        storyNarrationSpriteCreated(false),
-        storyScrollBoxH_global_var(0),
-        storyScrollBoxY_global_var(0),
+        storyTitleHandle({0}),
+        storyNarrationHandle({0}),
         currentStoryStep(0),
         textScrollOffset(0),
         lastScrollTimeNs(0),
@@ -196,15 +194,12 @@ public:
     }
 
     float getWarpFactor() const { return currentWarpFactor; }
+    int getCurrentStoryStep() const { return currentStoryStep; }
 
 private:
     // --- Story Mode Sprites for flicker-free rendering ---
-    TFT_eSprite storyTitleSprite;
-    TFT_eSprite storyNarrationSprite;
-    bool storyTitleSpriteCreated;
-    bool storyNarrationSpriteCreated;
-    int storyScrollBoxH_global_var; // For narration sprite height
-    int storyScrollBoxY_global_var; // For narration sprite Y position
+    SpriteHandle storyTitleHandle = {0};
+    SpriteHandle storyNarrationHandle = {0};
 
     void createSprites();
     void deinitSprites(); 
@@ -334,21 +329,14 @@ const int StoryMode::TOTAL_STORY_STOPS = sizeof(StoryMode::storyStopsList) / siz
 
 // --- Member function definitions for StoryMode class ---
 
-void StoryMode::deinitSprites() { // Was deinitStoryModeSprites
-    if (storyTitleSpriteCreated) {
-        SpriteManager::safeDeleteSprite(storyTitleSprite, "StoryTitle");
-        storyTitleSpriteCreated = false;
-        Serial.println("StoryTitleSprite deinited by StoryMode class.");
-    }
-    if (storyNarrationSpriteCreated) {
-        SpriteManager::safeDeleteSprite(storyNarrationSprite, "StoryNarration");
-        storyNarrationSpriteCreated = false;
-        Serial.println("StoryNarrationSprite deinited by StoryMode class.");
-    }
+// NOTE: SpriteManager::begin() must be called in setup() before using StoryMode!
+
+void StoryMode::deinitSprites() {
+    // No-op: UI elements drawn directly, no sprite cleanup needed
 }
 
 void StoryMode::setupLayout() { // Was setupStoryModeLayout
-    narrationBoxHeight = SCREEN_HEIGHT / 9;
+    narrationBoxHeight = SCREEN_HEIGHT / 4; // Made box taller (was SCREEN_HEIGHT / 9)
     narrationBoxYPos = SCREEN_HEIGHT - narrationBoxHeight;
     narrationBoxPadding = SCREEN_WIDTH / 40;
     charsPerNarrationLine = (SCREEN_WIDTH - 2 * narrationBoxPadding) / 6; // Assuming char width of 6
@@ -428,104 +416,26 @@ void StoryMode::drawCalibrationPrompt(int potValue) { // Was drawSetDialToZeroPr
     }
 }
 
-void StoryMode::prepareTitleSprite(const char* name) { // Was prepareStoryTitleSprite
-    if (!storyTitleSpriteCreated) return;
-    int barH = storyTitleSprite.height();
-    int centerX = storyTitleSprite.width() / 2;
-    int centerY = barH / 2;
-    storyTitleSprite.fillSprite(tft.color565(0, 40, 80));
-    storyTitleSprite.drawFastHLine(0, 0, storyTitleSprite.width(), tft.color565(0, 160, 255));
-    storyTitleSprite.drawFastHLine(0, barH - 1, storyTitleSprite.width(), tft.color565(0, 160, 255));
-    storyTitleSprite.setTextDatum(MC_DATUM);
-    storyTitleSprite.setTextSize(2);
-    storyTitleSprite.setTextColor(tft.color565(100, 200, 255));
-    storyTitleSprite.drawString(name, centerX + 1, centerY + 1);
-    storyTitleSprite.setTextColor(tft.color565(255, 255, 0));
-    storyTitleSprite.drawString(name, centerX, centerY);
+void StoryMode::prepareTitleSprite(const char* name) {
+    // Direct draw title bar instead of using a sprite
+    tft.fillRect(0, 0, SCREEN_WIDTH, 26, tft.color565(0, 40, 80));
+    tft.setTextDatum(MC_DATUM);
+    tft.setTextSize(2);
+    tft.setTextColor(tft.color565(100, 200, 255));
+    tft.drawCentreString(name, SCREEN_WIDTH / 2, 13, 1);
 }
 
-void StoryMode::prepareNarrationSprite(const char* text) { // Was prepareStoryNarrationSprite
-    if (!storyNarrationSpriteCreated) return;
-    int boxW = storyNarrationSprite.width();
-    int boxH = storyNarrationSprite.height();
-    storyNarrationSprite.fillSprite(tft.color565(0, 40, 80));
-    storyNarrationSprite.drawRect(0, 0, boxW, boxH, tft.color565(0, 160, 255));
-    storyNarrationSprite.drawRect(2, 2, boxW-4, boxH-4, tft.color565(0, 100, 200));
-    storyNarrationSprite.setTextSize(1);
-    int maxLineW = boxW - 20; // 10px padding on each side
-    std::vector<String> lines;
-    String stext = String(text);
-    int start = 0;
-    while (start < stext.length()) {
-        int end = start;
-        int lastSpace = -1;
-        while (end < stext.length()) {
-            String sub = stext.substring(start, end + 1);
-            if (storyNarrationSprite.textWidth(sub) > maxLineW) break;
-            if (stext[end] == ' ') lastSpace = end;
-            end++;
-        }
-        if (end < stext.length() && lastSpace > start) end = lastSpace;
-        String line = stext.substring(start, end);
-        line.trim();
-        lines.push_back(line);
-        while (end < stext.length() && stext[end] == ' ') end++; // Skip multiple spaces
-        start = end;
-    }
-
-    unsigned long now = millis();
-    if (now - lastNarrationScrollTime > narrationScrollPixelSpeed) {
-        lastNarrationScrollTime = now;
-        narrationScrollY++;
-        // Reset scroll if text has scrolled past (total lines height + box height for smooth loop)
-        if (narrationScrollY > (int)(lines.size() * 14 + boxH)) narrationScrollY = 0; 
-    }
-
-    int y0 = boxH - 14 - narrationScrollY; // Initial Y position for the first line of text, adjusted by scroll
-    storyNarrationSprite.setTextDatum(MC_DATUM); // Changed from ML_DATUM to MC_DATUM for center alignment
-    int spriteCenterX = storyNarrationSprite.width() / 2; // For centering text
-
-    for (size_t i = 0; i < lines.size(); ++i) {
-        int lineY = y0 + i * 14; // 14 is approx line height for text size 1
-        if (lineY >= -14 && lineY <= boxH) { // Only draw lines visible within or near the sprite box
-            // Removed glow effect drawString call
-            storyNarrationSprite.setTextColor(tft.color565(255, 255, 0)); // Main text color
-            storyNarrationSprite.drawString(lines[i], spriteCenterX, lineY); // Draw centered text
-        }
-    }
+void StoryMode::prepareNarrationSprite(const char* text) {
+    // Direct draw narration box instead of using a sprite
+    tft.fillRect(0, narrationBoxYPos, SCREEN_WIDTH, narrationBoxHeight, tft.color565(0, 0, 40));
+    tft.setTextSize(1);
+    tft.setTextColor(tft.color565(200, 255, 200));
+    tft.setCursor(narrationBoxPadding, narrationBoxYPos + narrationBoxPadding);
+    tft.print(text);
 }
 
 void StoryMode::createSprites() {
-    // Title Sprite
-    if (!storyTitleSpriteCreated) {
-        SpriteManager::safeDeleteSprite(storyTitleSprite, "StoryTitle"); 
-        int barH = SCREEN_HEIGHT / 12; 
-        // Create rectangular sprite: SCREEN_WIDTH x barH. Prefer HEAP for this test.
-        SpriteManager::createObjectSprite(storyTitleSprite, SCREEN_WIDTH, barH, "StoryTitle", false);
-
-        if (storyTitleSprite.width() > 0 && storyTitleSprite.height() > 0) {
-            storyTitleSpriteCreated = true;
-        } else {
-            storyTitleSpriteCreated = false;
-            Serial.println("StoryTitleSprite creation reported failure by SpriteManager or resulted in 0 dimension.");
-        }
-    }
-
-    // Narration Sprite
-    if (!storyNarrationSpriteCreated) {
-        SpriteManager::safeDeleteSprite(storyNarrationSprite, "StoryNarration"); 
-        int narrationBoxH = SCREEN_HEIGHT / 4; 
-        int narrationBoxWidth = SCREEN_WIDTH - SCREEN_WIDTH / 12; 
-        // Create rectangular sprite. Prefer HEAP for this test.
-        SpriteManager::createObjectSprite(storyNarrationSprite, narrationBoxWidth, narrationBoxH, "StoryNarration", false);
-
-        if (storyNarrationSprite.width() > 0 && storyNarrationSprite.height() > 0) {
-            storyNarrationSpriteCreated = true;
-        } else {
-            storyNarrationSpriteCreated = false;
-            Serial.println("StoryNarrationSprite creation reported failure by SpriteManager or resulted in 0 dimension.");
-        }
-    }
+    // No-op: UI elements drawn directly, no sprite creation needed
 }
 
 void StoryMode::init() { // Was initStoryMode
@@ -585,6 +495,15 @@ void StoryMode::init() { // Was initStoryMode
     tft.fillScreen(BG_COLOR);
     initialized = true;
     Serial.println("StoryMode initialized.");
+
+    // Render the initial visuals for the first step
+    tft.fillScreen(BG_COLOR); // Clear screen first
+    createSprites(); // Create sprites *after* layout is calculated
+    if (initialized) { // Check if init succeeded before drawing
+        updateCurrentStepVisuals();
+        // Draw the static starfield initially
+        updateStars(); 
+    }
 }
 
 
@@ -655,54 +574,136 @@ void StoryMode::advanceToNextStop() { // Was advanceToNextStoryStep
     Serial.printf("Advanced to story stop: %d\n", currentStoryStep);
 }
 
-void StoryMode::updateCurrentStepVisuals() { // Derived from updateStoryStep
+void StoryMode::updateCurrentStepVisuals() {
     if (!initialized) return;
-
     const StoryStop& currentStop = storyStopsList[currentStoryStep];
-
     if (!warpActive) {
-        // Object drawing (directly to TFT for now)
-        // Consider clearing only the object area if performance is an issue
-        // For now, drawFunction is expected to handle its drawing area or rely on full redraws after advanceToNextStop
+        setLedModeStory();
         if (currentStoryStep != lastDisplayedStoryStep) {
-             // Simplified clear for now, can be optimized to clear only object area if needed.
-            // tft.fillScreen(BG_COLOR); // This might be too much if stars are drawn by main loop.
+            // Clear the screen or specific object area if only the object changes
+            // For now, assume full redraw or that object drawing handles its own clearing
         }
-        
-        // Ensure object properties are set for the drawFunction
-        // These externs are problematic for encapsulation. Ideally, drawFunctions would take parameters.
         objectX = SCREEN_WIDTH / 2;
         objectY = SCREEN_HEIGHT / 2;
+        
+        // Adjust object position to account for larger narration box
+        int titleHeight = 30;
+        int narrationEffectiveYPos = narrationBoxYPos - 5;
+        objectY = titleHeight + (narrationEffectiveYPos - titleHeight) / 2;
+
         objectScale = 1.5;
         currentStop.drawFunction();
 
-        // Title Sprite
-        if (storyTitleSpriteCreated) {
-            prepareTitleSprite(currentStop.name);
-            // Clear area under title sprite before pushing, to prevent artifacts if sprite is smaller or transparent
-            // tft.fillRect(0, 0, SCREEN_WIDTH, storyTitleSprite.height(), BG_COLOR); // Or TFT_BLACK if BG_COLOR is not black
-            storyTitleSprite.pushSprite(0, 0);
-        } else {
-            // Fallback: drawStoryTitle(currentStop.name); // Old direct drawing
+        // --- Title Drawing ---
+        tft.setTextDatum(MC_DATUM);
+        tft.setTextSize(2);
+        for(int i = 3; i > 0; i--) {
+            tft.setTextColor(tft.color565(0, 20, 50 - i*10));
+            tft.drawString(currentStop.name, SCREEN_WIDTH/2 + i, titleHeight/2 + i - 2);
+        }
+        tft.setTextColor(tft.color565(0, 200, 255));
+        tft.drawString(currentStop.name, SCREEN_WIDTH/2, titleHeight/2 - 2);
+        for(int i = 0; i < 2; i++) {
+            tft.drawFastHLine(SCREEN_WIDTH/2 - 60 + i*2, titleHeight - 4 + i, 120 - i*4,
+                             tft.color565(0, 160 - i*40, 200 - i*40));
         }
 
-        // Narration Sprite
-        if (storyNarrationSpriteCreated) {
-            prepareNarrationSprite(currentStop.narration);
-            int narrationBoxSpriteX = (SCREEN_WIDTH - storyNarrationSprite.width()) / 2;
-            int narrationPushY = SCREEN_HEIGHT - storyNarrationSprite.height(); // Position at the very bottom
-            storyNarrationSprite.pushSprite(narrationBoxSpriteX, narrationPushY); 
-        } else {
-            // Fallback: updateNarrationScrolling(currentStop.narration);
-            // Fallback: drawCurrentNarrationBox(currentStop.narration, textScrollOffset);
+        // --- Narration Box with Star Wars Style Scrolling ---
+        int narrBoxX = narrationBoxPadding;
+        int narrBoxW = SCREEN_WIDTH - 2 * narrationBoxPadding;
+        
+        // Clear previous content first
+        tft.fillRect(narrBoxX, narrationBoxYPos, narrBoxW, narrationBoxHeight, BG_COLOR);
+        
+        // Background and borders
+        tft.fillRect(narrBoxX + 4, narrationBoxYPos + 4, narrBoxW - 8, narrationBoxHeight - 8, tft.color565(0, 40, 80));
+        tft.drawRect(narrBoxX + 2, narrationBoxYPos + 2, narrBoxW - 4, narrationBoxHeight - 4, tft.color565(0, 160, 255));
+        tft.drawRect(narrBoxX, narrationBoxYPos, narrBoxW, narrationBoxHeight, tft.color565(255, 255, 0));
+
+        // Text rendering with Star Wars style scrolling
+        tft.setTextSize(1);
+        tft.setTextColor(tft.color565(220, 220, 240));
+        tft.setTextWrap(true);
+        tft.setTextDatum(MC_DATUM);
+
+        // Calculate text dimensions and positioning
+        int textPaddingInsideBox = 8;
+        int textDisplayWidth = narrBoxW - 16 - (2 * textPaddingInsideBox); // Reduced width for better margins
+        String narrationText = currentStop.narration;
+        
+        // Update scroll position
+        unsigned long currentTime = millis();
+        if (currentTime - lastNarrationScrollTime > narrationScrollPixelSpeed) {
+            lastNarrationScrollTime = currentTime;
+            narrationScrollY++; // Scroll upward
+            // Reset scroll when text is off screen
+            if (narrationScrollY > narrationBoxHeight * 2) {
+                narrationScrollY = -narrationBoxHeight;
+            }
         }
+
+        // Split text into lines for centered display
+        int maxCharsPerLine = textDisplayWidth / 6;
+        int startChar = 0;
+        int lineHeight = 14; // Increased line spacing to prevent overlap
+        
+        // Calculate starting Y position for text to scroll from bottom
+        // Add extra padding at the bottom to prevent first line overlay
+        int textStartY = narrationBoxYPos + narrationBoxHeight + lineHeight - narrationScrollY;
+        
+        // Vector to store all lines before drawing
+        std::vector<String> lines;
+        
+        // First pass: split text into lines
+        while(startChar < narrationText.length()) {
+            int endChar = startChar + maxCharsPerLine;
+            if(endChar > narrationText.length()) endChar = narrationText.length();
+            
+            String line = narrationText.substring(startChar, endChar);
+            
+            // Word wrapping
+            if(endChar < narrationText.length()) {
+                int lastSpace = line.lastIndexOf(' ');
+                if(lastSpace > 0 && line.length() == maxCharsPerLine) {
+                    line = line.substring(0, lastSpace);
+                    endChar = startChar + line.length() + 1;
+                }
+            }
+            
+            lines.push_back(line);
+            startChar = endChar;
+            while(startChar < narrationText.length() && narrationText.charAt(startChar) == ' ') startChar++;
+        }
+        
+        // Second pass: draw all lines with strict bounds checking
+        int visibleTop = narrationBoxYPos + 8;
+        int visibleBottom = narrationBoxYPos + narrationBoxHeight - 8;
+        
+        // Save the current text color for later restoration
+        uint16_t savedColor = tft.textcolor;
+        
+        for(size_t i = 0; i < lines.size(); i++) {
+            int currentY = textStartY + (i * lineHeight);
+            
+            // Only draw if line is within the visible area of the box
+            if (currentY >= visibleTop && currentY <= visibleBottom) {
+                // Create a temporary background-colored rectangle to clear any previous text
+                tft.setTextColor(tft.color565(0, 40, 80)); // Background color
+                tft.drawString("                              ", SCREEN_WIDTH/2, currentY); // Clear line with spaces
+                
+                // Draw the actual text
+                tft.setTextColor(tft.color565(220, 220, 240)); // Text color
+                tft.drawString(lines[i], SCREEN_WIDTH/2, currentY);
+            }
+        }
+        
+        // Restore the original text color
+        tft.setTextColor(savedColor);
+
         lastDisplayedStoryStep = currentStoryStep;
     } else {
-        // In warp mode, main sketch/loop should handle warp stars typically.
-        // If StoryMode needs to draw them, it would call updateWarpStars() here.
-        // For now, assume main loop handles warp visuals when warpActive is true.
-        updateWarpStars(); // Call the extern warp update function
-        lastDisplayedStoryStep = -1; // Ensure refresh when exiting warp
+        updateWarpStars();
+        lastDisplayedStoryStep = -1;
     }
 }
 

@@ -36,8 +36,9 @@ extern float objectScale;
 extern Star stars[];
 
 // Declare sprite for space station rendering
-extern TFT_eSprite stationSprite;
-extern bool stationSpriteCreated;
+// extern TFT_eSprite stationSprite;
+// extern bool stationSpriteCreated;
+extern SpriteHandle stationHandle; // Use handle from .ino
 
 static bool forceRedrawStation = true; // Flag to force redraw of station sprite content
 
@@ -63,8 +64,8 @@ void drawSpaceStation() {
   float scale = objectScale * scaleFactor; // Apply global scaling
   unsigned long currentTime = millis();
   
-  // Create sprite if needed
-  if (!stationSpriteCreated) {
+  // Use handle to check if sprite is valid, create if not
+  if (stationHandle.id == 0) {
     // Calculate dimensions for the station parts
     int bodyWidth = scale_i(18) * scale;
     int bodyHeight = scale_i(7) * scale;
@@ -76,39 +77,41 @@ void drawSpaceStation() {
     int totalHeight = std::max(bodyHeight, panelHeight); // Whichever is taller
     
     // Calculate the maximum possible extent during rotation
-    // For a rotating object, we need a square buffer that can contain the
-    // diagonal of the object at any rotation angle
     float diagonal = sqrt(totalWidth * totalWidth + totalHeight * totalHeight);
+    int spriteSize = ceil(diagonal * 1.2); // Add a safety margin
     
-    // Add a safety margin (20% extra)
-    int spriteSize = ceil(diagonal * 1.2);
+    Serial.printf("[SpaceStation] Requesting sprite size: %d\n", spriteSize);
     
-    // Log the calculations for debugging
-    Serial.printf("Station dimensions - Body: %dx%d, Panels: %dx%d\n", 
-                  bodyWidth, bodyHeight, panelWidth, panelHeight);
-    Serial.printf("Total size: %dx%d, Diagonal: %.1f, Final sprite size: %d\n", 
-                  totalWidth, totalHeight, diagonal, spriteSize);
-    
-    // Create sprite if not already done (or if it needs recreation due to size change)
-    if (!stationSpriteCreated) {
-        SpriteManager::safeDeleteSprite(stationSprite, "SpaceStation"); // Delete before creating new
-        SpriteManager::createObjectSprite(stationSprite, spriteSize, "SpaceStation", true);
-        stationSpriteCreated = (stationSprite.width() > 0 && stationSprite.height() > 0);
+    // Create sprite using the manager
+    SpriteAllocResult res = SpriteManager::create(spriteSize, spriteSize, true, stationHandle); // Prefer PSRAM
+
+    if (res == SpriteAllocResult::Success || res == SpriteAllocResult::SuccessShrunk || res == SpriteAllocResult::FellBackToHeap) {
+        Serial.println("[SpaceStation] Sprite created successfully via manager.");
         forceRedrawStation = true; // Force redraw after creation
+    } else {
+        Serial.printf("[SpaceStation] ERROR: Failed to create sprite via manager! Result: %d\n", (int)res);
+        stationHandle = {0}; // Ensure handle is invalid
+        // Fallback or error handling needed here - maybe draw directly?
+        eraseSpaceStation(); // Clear area where sprite would have been
+        drawSpaceStationDirect(); // Draw directly as fallback
+        return;
     }
   }
   
-  // If sprite creation failed or sprite was deleted, draw directly to screen
-  if (!stationSpriteCreated) {
-    // Fall back to drawing directly on the screen - clear previous drawing first
+  // Get sprite reference using handle
+  TFT_eSprite* spritePtr = SpriteManager::getSpriteRef(stationHandle);
+  
+  // If sprite handle is valid but we couldn't get a reference, or if handle was initially invalid
+  if (!spritePtr) {
+    Serial.println("[SpaceStation] ERROR: Invalid handle or failed to get sprite reference. Drawing directly.");
     eraseSpaceStation();
     drawSpaceStationDirect();
     return;
   }
   
-  // Get sprite dimensions
-  int spriteWidth = stationSprite.width();
-  int spriteHeight = stationSprite.height();
+  // Get sprite dimensions (use spritePtr now)
+  int spriteWidth = spritePtr->width();
+  int spriteHeight = spritePtr->height();
   
   // Calculate sprite offset to center station
   int spriteOffsetX = centerX - spriteWidth / 2;
@@ -118,20 +121,19 @@ void drawSpaceStation() {
   int spriteCenterX = spriteWidth / 2;
   int spriteCenterY = spriteHeight / 2;
   
-  // Clear the sprite buffer
-  stationSprite.fillSprite(BG_COLOR);
+  // Clear the sprite buffer (use spritePtr)
+  spritePtr->fillSprite(BG_COLOR);
   
-  // Draw starfield background from main stars array to maintain continuity
+  // Draw starfield background (use spritePtr)
   for (int i = 0; i < STAR_COUNT; i++) {
     int spriteStarX = stars[i].x - spriteOffsetX;
     int spriteStarY = stars[i].y - spriteOffsetY;
     
-    // Only draw stars that would appear within sprite bounds
     if (spriteStarX >= 0 && spriteStarX < spriteWidth && 
         spriteStarY >= 0 && spriteStarY < spriteHeight) {
       uint8_t brightness = stars[i].brightness;
-      uint16_t color = stationSprite.color565(brightness, brightness, brightness);
-      stationSprite.drawPixel(spriteStarX, spriteStarY, color);
+      uint16_t color = spritePtr->color565(brightness, brightness, brightness);
+      spritePtr->drawPixel(spriteStarX, spriteStarY, color);
     }
   }
   
@@ -173,23 +175,23 @@ void drawSpaceStation() {
     rotatePoint(bodyCorners[i][0], bodyCorners[i][1]);
   }
   
-  // Draw a filled polygon for the station body
-  uint16_t bodyColor = stationSprite.color565(180, 180, 180);
-  stationSprite.fillTriangle(
+  // Draw a filled polygon for the station body (use spritePtr)
+  uint16_t bodyColor = spritePtr->color565(180, 180, 180);
+  spritePtr->fillTriangle(
     bodyCorners[0][0], bodyCorners[0][1],
     bodyCorners[1][0], bodyCorners[1][1],
     bodyCorners[2][0], bodyCorners[2][1],
     bodyColor
   );
   
-  stationSprite.fillTriangle(
+  spritePtr->fillTriangle(
     bodyCorners[0][0], bodyCorners[0][1],
     bodyCorners[2][0], bodyCorners[2][1],
     bodyCorners[3][0], bodyCorners[3][1],
     bodyColor
   );
   
-  // Draw solar panels
+  // Draw solar panels (use spritePtr)
   for (int panel = 0; panel < 2; panel++) {
     int panelX = (panel == 0) ? 
       spriteCenterX - bodyWidth/2 - panelWidth/2 : 
@@ -215,15 +217,15 @@ void drawSpaceStation() {
       }
       
       // Draw filled panel
-      uint16_t panelColor = stationSprite.color565(40 + segment*5, 45 + segment*5, 80 + segment*10);
-      stationSprite.fillTriangle(
+      uint16_t panelColor = spritePtr->color565(40 + segment*5, 45 + segment*5, 80 + segment*10);
+      spritePtr->fillTriangle(
         corners[0][0], corners[0][1],
         corners[1][0], corners[1][1],
         corners[2][0], corners[2][1],
         panelColor
       );
       
-      stationSprite.fillTriangle(
+      spritePtr->fillTriangle(
         corners[0][0], corners[0][1],
         corners[2][0], corners[2][1],
         corners[3][0], corners[3][1],
@@ -231,10 +233,10 @@ void drawSpaceStation() {
       );
       
       // Draw panel borders
-      uint16_t panelOutlineColor = stationSprite.color565(30 + segment*5, 35 + segment*5, 70 + segment*10);
+      uint16_t panelOutlineColor = spritePtr->color565(30 + segment*5, 35 + segment*5, 70 + segment*10);
       for (int c = 0; c < 4; c++) {
         int next = (c + 1) % 4;
-        stationSprite.drawLine(
+        spritePtr->drawLine(
           corners[c][0], corners[c][1],
           corners[next][0], corners[next][1],
           panelOutlineColor
@@ -243,11 +245,11 @@ void drawSpaceStation() {
     }
   }
 
-  // Draw communication dish
+  // Draw communication dish (use spritePtr)
   int dishX = spriteCenterX;
   int dishY = spriteCenterY - bodyHeight/2 - scale_i(2);
   rotatePoint(dishX, dishY);
-  stationSprite.fillCircle(dishX, dishY, dishRadius, stationSprite.color565(120, 120, 120));
+  spritePtr->fillCircle(dishX, dishY, dishRadius, spritePtr->color565(120, 120, 120));
   
   // Navigation lights
   // Red light (left)
@@ -256,7 +258,7 @@ void drawSpaceStation() {
   rotatePoint(redX, redY);
   bool redOn = ((currentTime / 500) % 2 == 0);
   if (redOn) {
-    stationSprite.fillCircle(redX, redY, lightRadius, COLOR_ERROR);
+    spritePtr->fillCircle(redX, redY, lightRadius, COLOR_ERROR);
   }
   
   // Green light (right)
@@ -265,7 +267,7 @@ void drawSpaceStation() {
   rotatePoint(greenX, greenY);
   bool greenOn = ((currentTime / 500) % 2 == 1);
   if (greenOn) {
-    stationSprite.fillCircle(greenX, greenY, lightRadius, COLOR_GREEN);
+    spritePtr->fillCircle(greenX, greenY, lightRadius, COLOR_GREEN);
   }
   
   // White strobe (top)
@@ -274,7 +276,7 @@ void drawSpaceStation() {
   rotatePoint(strobeX, strobeY);
   bool strobeOn = ((currentTime / 2000) % 4 == 0);
   if (strobeOn) {
-    stationSprite.fillCircle(strobeX, strobeY, lightRadius, COLOR_STARFIELD);
+    spritePtr->fillCircle(strobeX, strobeY, lightRadius, COLOR_STARFIELD);
   }
   
   // Draw windows with blinking lights
@@ -286,11 +288,11 @@ void drawSpaceStation() {
     // Window light effect
     bool windowOn = ((currentTime / 1000) + i) % 3 == 0;
     uint16_t windowColor = windowOn ? 
-      stationSprite.color565(255, 255, 150) : stationSprite.color565(100, 100, 80);
+      spritePtr->color565(255, 255, 150) : spritePtr->color565(100, 100, 80);
     
-    stationSprite.drawPixel(winX, winY, windowColor);
+    spritePtr->drawPixel(winX, winY, windowColor);
     if (scale > 1.0) {
-      stationSprite.drawPixel(winX, winY+1, windowColor);
+      spritePtr->drawPixel(winX, winY+1, windowColor);
     }
   }
   
@@ -300,52 +302,21 @@ void drawSpaceStation() {
     int beamLength = scale_i(10);
     int beamEndX = dishX + cos(stationAngle + PI/4) * beamLength;
     int beamEndY = dishY + sin(stationAngle + PI/4) * beamLength;
-    stationSprite.drawLine(dishX, dishY, beamEndX, beamEndY, stationSprite.color565(70, 70, 255));
+    spritePtr->drawLine(dishX, dishY, beamEndX, beamEndY, spritePtr->color565(70, 70, 255));
     
     // Add beam animation
     if ((currentTime / 200) % 2 == 0) {
       int midX = dishX + cos(stationAngle + PI/4) * beamLength * 0.5;
       int midY = dishY + sin(stationAngle + PI/4) * beamLength * 0.5;
-      stationSprite.drawPixel(midX, midY, stationSprite.color565(200, 200, 255));
+      spritePtr->drawPixel(midX, midY, spritePtr->color565(200, 200, 255));
     }
   }
   
-  // Push the sprite to the screen - error handling for memory issues
-  #ifdef ESP32
-  if (stationSpriteCreated) {
-    stationSprite.pushSprite(spriteOffsetX, spriteOffsetY);
-    
-    // Check if we've run into low memory issues
-    int freeHeap = ESP.getFreeHeap();
-  //  Serial.printf("Free heap after drawing: %d bytes\n", freeHeap);
-    if (freeHeap < 8000) {  // Use a higher threshold to be safe
-      Serial.println("Low memory detected, freeing sprite resources");
-      SpriteManager::safeDeleteSprite(stationSprite, "SpaceStation");
-      stationSpriteCreated = false;
-    }
-  } else {
-    // If sprite wasn't created, use direct drawing 
-    drawSpaceStationDirect();
-  }
-  #else
-  if (stationSpriteCreated) {
-    stationSprite.pushSprite(spriteOffsetX, spriteOffsetY);
-  } else {
-    drawSpaceStationDirect();
-  }
-  #endif
+  // Push the final sprite to the screen
+  // Use SpriteManager::draw with handle
+  SpriteManager::draw(stationHandle, spriteOffsetX, spriteOffsetY);
   
-  // Check if we've run into low memory issues (simplified check)
-  #ifdef ESP32
-  if (ESP.getFreeHeap() < 4000) {  // Use a reasonable threshold
-    Serial.println("Low memory detected, freeing sprite resources");
-    // Free sprite and try direct drawing next time
-    if (stationSpriteCreated) {
-      SpriteManager::safeDeleteSprite(stationSprite, "SpaceStation");
-      stationSpriteCreated = false;
-    }
-  }
-  #endif
+  forceRedrawStation = false; // Reset redraw flag
 }
 
 // Fallback direct drawing function when sprite fails
@@ -479,35 +450,40 @@ void drawSpaceStationDirect() {
 }
 
 void eraseSpaceStation() {
-  if (stationSpriteCreated) {
-    // Free sprite resources
-    SpriteManager::safeDeleteSprite(stationSprite, "SpaceStation");
-    stationSpriteCreated = false;
-    #ifdef ESP32
-    Serial.printf("Free heap after sprite deletion: %d bytes\n", ESP.getFreeHeap());
-    #endif
-  }
-  
-  // We still need to clear the area on screen where the space station was drawn
-  // Calculate the maximum possible extent of the station based on its dimensions
+  // Use handle and SpriteManager::destroy
+  if (stationHandle.id != 0) {
+    Serial.println("[SpaceStation] Erasing using SpriteManager::destroy");
+    // Find the entry to get dimensions for clearing the screen area
+    int16_t spriteW = SpriteManager::getWidth(stationHandle);
+    int16_t spriteH = SpriteManager::getHeight(stationHandle);
+    if (spriteW > 0 && spriteH > 0) { // Check if dimensions are valid
+        // Calculate screen coords based on where it *was* drawn
+        int spriteOffsetX = objectX - spriteW / 2;
+        int spriteOffsetY = objectY - spriteH / 2;
+        tft.fillRect(spriteOffsetX, spriteOffsetY, spriteW, spriteH, BG_COLOR);
+    } else {
+        // Fallback: guess a size to clear if dimensions couldn't be retrieved
+        Serial.println("[SpaceStation] Warning: Could not get sprite dimensions for clearing. Guessing size.");
+        int clearSize = 120; // Guess size
+        tft.fillRect(objectX - clearSize / 2, objectY - clearSize / 2, clearSize, clearSize, BG_COLOR);
+    }
+    SpriteManager::destroy(stationHandle);
+    stationHandle = {0}; // Invalidate handle
+  } else {
+    // If no sprite handle, try to erase based on direct drawing
+    // This requires knowing the size used in drawSpaceStationDirect
+    Serial.println("[SpaceStation] Erasing direct draw area (estimated).");
   float scale = objectScale * scaleFactor;
   int bodyWidth = scale_i(18) * scale;
   int bodyHeight = scale_i(7) * scale;
   int panelWidth = scale_i(5) * scale;
   int panelHeight = scale_i(12) * scale;
-  
-  // Calculate total width and height including panels
-  int totalWidth = bodyWidth + 2 * panelWidth; // Main body + both solar panels
-  int totalHeight = std::max(bodyHeight, panelHeight); // Whichever is taller
-  
-  // Calculate the diagonal extent for rotation
+    int totalWidth = bodyWidth + 2 * panelWidth;
+    int totalHeight = std::max(bodyHeight, panelHeight);
   float diagonal = sqrt(totalWidth * totalWidth + totalHeight * totalHeight);
-  
-  // Add a safety margin (20% extra) and round up
-  int eraseSize = ceil(diagonal * 1.2);
-  
-  // Clear the entire station area with the calculated size
-  tft.fillRect(objectX - eraseSize/2, objectY - eraseSize/2, eraseSize, eraseSize, BG_COLOR);
+    int clearSize = ceil(diagonal * 1.2); // Match sprite size calculation
+    tft.fillRect(objectX - clearSize/2, objectY - clearSize/2, clearSize, clearSize, BG_COLOR);
+  }
 }
 
 #endif // SPACESTATION_H

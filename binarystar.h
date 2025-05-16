@@ -27,8 +27,7 @@ extern float scaleFactor;
 extern Star stars[];
 
 // Declare sprite for binary star rendering
-extern TFT_eSprite binaryStarSprite;
-extern bool binaryStarSpriteCreated;
+extern SpriteHandle binaryStarHandle; // Use handle from .ino
 
 static bool forceRedrawBinaryStar = true; // Flag to force redraw of binary star sprite content
 
@@ -143,102 +142,90 @@ void drawBinaryStar() {
   // Save the size for proper cleanup later (add margin for cleanup)
   prevBinaryStarSize = calculatedSpriteSize * 1.2f;
   
-  #ifdef ESP32
-  //Serial.printf("[BinaryStar] Scale: %.2f, Stars: %d/%d, Orbits: %d/%d, Sprite: %d\n", 
-  //             scale, radius1, radius2, orbitRadius1, orbitRadius2, calculatedSpriteSize);
-  #endif
-  
-  if (!binaryStarSpriteCreated) {
+  // Use handle to manage sprite lifecycle
+  TFT_eSprite* spritePtr = nullptr;
+
+  if (binaryStarHandle.id == 0) { // Create sprite if handle is invalid
     // If memory is critically low, use direct drawing
     #ifdef ESP32
     if (ESP.getFreeHeap() < 8000 || ESP.getFreePsram() < 8000) {
       Serial.println("[BinaryStar] Critical memory - using direct drawing");
-      binaryStarSpriteCreated = false;
       drawBinaryStarDirect();
       return;
     }
-    
     Serial.printf("[BinaryStar] Creating sprite %dx%d. Heap: %u, PSRAM: %u\n", 
                  calculatedSpriteSize, calculatedSpriteSize, ESP.getFreeHeap(), ESP.getFreePsram());
     #endif
     
-    // Clean up any previously created sprite first
-    if (binaryStarSprite.width() > 0 || binaryStarSprite.height() > 0) {
-      binaryStarSprite.deleteSprite();
-    }
-    
-    // Create sprite if not already done or if size changed significantly
-    if (!binaryStarSpriteCreated || abs(calculatedSpriteSize - binaryStarSprite.width()) > 4 ) {
-        SpriteManager::safeDeleteSprite(binaryStarSprite, "BinaryStar");
-        SpriteManager::createObjectSprite(binaryStarSprite, calculatedSpriteSize, "BinaryStar", true);
-        binaryStarSpriteCreated = (binaryStarSprite.width() > 0 && binaryStarSprite.height() > 0);
-        forceRedrawBinaryStar = true;
-    }
-    
-    // Verify sprite creation success by checking dimensions
-    if (binaryStarSprite.width() > 0 && binaryStarSprite.height() > 0) {
-      binaryStarSpriteCreated = true;
-      #ifdef ESP32
-      Serial.printf("[BinaryStar] Sprite created: %dx%d\n", 
-                   binaryStarSprite.width(), binaryStarSprite.height());
-      #endif
+      // Create sprite using the manager
+      SpriteAllocResult res = SpriteManager::create(calculatedSpriteSize, calculatedSpriteSize, true, binaryStarHandle); // Prefer PSRAM
+
+      if (res == SpriteAllocResult::Success || res == SpriteAllocResult::SuccessShrunk || res == SpriteAllocResult::FellBackToHeap) {
+          Serial.printf("[BinaryStar] Sprite created successfully via manager (ID: %u).\n", binaryStarHandle.id);
+          spritePtr = SpriteManager::getSpriteRef(binaryStarHandle);
+          if (!spritePtr) {
+              Serial.println("[BinaryStar] ERROR: Failed to get sprite ref after creation!");
+              SpriteManager::destroy(binaryStarHandle); // Clean up failed creation
+              binaryStarHandle = {0};
+              drawBinaryStarDirect(); // Fallback
+              return;
+          }
+          forceRedrawBinaryStar = true; // Force redraw after creation
     } else {
-      binaryStarSpriteCreated = false;
-      #ifdef ESP32
-      Serial.println("[BinaryStar] Sprite creation FAILED");
-      #endif
-      
+          Serial.printf("[BinaryStar] ERROR: Failed to create sprite via manager! Result: %d\n", (int)res);
+          binaryStarHandle = {0}; // Ensure handle is invalid
+          drawBinaryStarDirect(); // Fallback
+          return;
+      }
+  } else { // Handle is valid, try to get sprite reference
+      spritePtr = SpriteManager::getSpriteRef(binaryStarHandle);
+      if (!spritePtr) {
+          Serial.println("[BinaryStar] ERROR: Handle was valid but failed to get sprite reference. Using direct draw.");
+          binaryStarHandle = {0}; // Invalidate handle as it points to nothing usable
       drawBinaryStarDirect();
       return;
     }
-  }
-  
-  if (!binaryStarSpriteCreated) {
-    drawBinaryStarDirect(); // Fallback if sprite not created
+      // Check if size needs significant update (optional)
+      if (abs(calculatedSpriteSize - spritePtr->width()) > 10) { // If size differs by > 10 pixels
+          Serial.println("[BinaryStar] INFO: Recreating sprite due to significant size change.");
+          SpriteManager::destroy(binaryStarHandle); // Destroy old one
+          binaryStarHandle = {0};
+          drawBinaryStar(); // Recurse to recreate with new size (be careful with recursion depth)
     return;
   }
-  
-  // If we reach here, binaryStarSpriteCreated is true and sprite should be valid.
-  // Double-check sprite validity one more time
-  if (binaryStarSprite.width() <= 0 || binaryStarSprite.height() <= 0) {
-    #ifdef ESP32
-    Serial.println("[BinaryStar] Sprite invalid despite creation flag, using direct drawing");
-    #endif
-    binaryStarSpriteCreated = false;
-    drawBinaryStarDirect();
-    return;
   }
-  
-  int spriteWidth = binaryStarSprite.width();
-  int spriteHeight = binaryStarSprite.height();
+
+  // If we reach here, spritePtr should be valid
+
+  int spriteWidth = spritePtr->width();
+  int spriteHeight = spritePtr->height();
   int spriteOffsetX = centerX - spriteWidth / 2;
   int spriteOffsetY = centerY - spriteHeight / 2;
   int spriteCenterX = spriteWidth / 2;
   int spriteCenterY = spriteHeight / 2;
   
-  // Clear with solid color - must happen before any drawing
-  binaryStarSprite.fillSprite(BG_COLOR);
+  // Clear with solid color (use spritePtr)
+  spritePtr->fillSprite(BG_COLOR);
   
-  // Draw minimal starfield background - just a few key stars
-  // Even more selectively draw stars to prevent flickering
-  for (int i = 0; i < STAR_COUNT; i += 4) { // Draw every 4th star
-    if (stars[i].brightness > 200) { // Only draw the brightest stars
+  // Draw minimal starfield background (use spritePtr)
+  for (int i = 0; i < STAR_COUNT; i += 4) {
+    if (stars[i].brightness > 200) {
       int spriteStarX = stars[i].x - spriteOffsetX;
       int spriteStarY = stars[i].y - spriteOffsetY;
       if (spriteStarX >= 2 && spriteStarX < spriteWidth-2 && 
           spriteStarY >= 2 && spriteStarY < spriteHeight-2) {
         uint8_t brightness = stars[i].brightness;
-        uint16_t color = binaryStarSprite.color565(brightness, brightness, brightness);
-        binaryStarSprite.drawPixel(spriteStarX, spriteStarY, color);
+        uint16_t color = spritePtr->color565(brightness, brightness, brightness);
+        spritePtr->drawPixel(spriteStarX, spriteStarY, color);
       }
     }
   }
   
-  // Binary star colors - these could be parameters if we want different types
-  uint16_t color1_core = binaryStarSprite.color565(255, 210, 100);
-  uint16_t color1_glow = binaryStarSprite.color565(255, 160, 40);
-  uint16_t color2_core = binaryStarSprite.color565(160, 210, 255);
-  uint16_t color2_glow = binaryStarSprite.color565(70, 150, 240);
+  // Binary star colors (use spritePtr for color565)
+  uint16_t color1_core = spritePtr->color565(255, 210, 100);
+  uint16_t color1_glow = spritePtr->color565(255, 160, 40);
+  uint16_t color2_core = spritePtr->color565(160, 210, 255);
+  uint16_t color2_glow = spritePtr->color565(70, 150, 240);
   
   // Calculate star positions based on time and orbit
   float angularSpeed = 0.0012f;
@@ -250,11 +237,11 @@ void drawBinaryStar() {
   int y2 = round(spriteCenterY - orbitRadius2 * sin(time_val));
   
   // Draw orbital trails - simple circles for stability
-  uint16_t trailColorBase = binaryStarSprite.color565(40, 40, 50);
+  uint16_t trailColorBase = spritePtr->color565(40, 40, 50);
   
   // Draw just the orbit circles - no individual points to avoid flickering
-  binaryStarSprite.drawCircle(spriteCenterX, spriteCenterY, orbitRadius1, trailColorBase);
-  binaryStarSprite.drawCircle(spriteCenterX, spriteCenterY, orbitRadius2, trailColorBase);
+  spritePtr->drawCircle(spriteCenterX, spriteCenterY, orbitRadius1, trailColorBase);
+  spritePtr->drawCircle(spriteCenterX, spriteCenterY, orbitRadius2, trailColorBase);
   
   // Draw interaction stream between stars if they're close enough
   float distanceBetween = sqrt(pow(x2 - x1, 2) + pow(y2 - y1, 2));
@@ -262,57 +249,22 @@ void drawBinaryStar() {
   
   if (distanceBetween < interactionDistance && distanceBetween > 1.0f) {
     // Draw a simple connection line for efficiency - thicker line to avoid flickering
-    uint16_t streamColor = binaryStarSprite.color565(200, 210, 240);
+    uint16_t streamColor = spritePtr->color565(200, 210, 240);
     
     // Draw a line with thickness=2 by drawing two adjacent lines
-    binaryStarSprite.drawLine(x1, y1, x2, y2, streamColor);
-    binaryStarSprite.drawLine(x1, y1+1, x2, y2+1, streamColor);
+    spritePtr->drawLine(x1, y1, x2, y2, streamColor);
+    spritePtr->drawLine(x1, y1+1, x2, y2+1, streamColor);
   }
   
   // Draw the stars with simplified approach to avoid flickering
   // Use filled circles instead of gradient approach for consistent rendering
-  binaryStarSprite.fillCircle(x1, y1, radius1, color1_core);
-  binaryStarSprite.drawCircle(x1, y1, radius1+1, color1_glow); // Add glow ring
+  drawStarRealistic(*spritePtr, x1, y1, radius1, color1_core, color1_glow);
+  drawStarRealistic(*spritePtr, x2, y2, radius2, color2_core, color2_glow);
   
-  binaryStarSprite.fillCircle(x2, y2, radius2, color2_core);
-  binaryStarSprite.drawCircle(x2, y2, radius2+1, color2_glow); // Add glow ring
-  
-  // Push the sprite to the screen with strict bounds checking
-  if (binaryStarSpriteCreated && 
-      spriteOffsetX >= -spriteWidth/2 && spriteOffsetX <= SCREEN_WIDTH - spriteWidth/2 &&
-      spriteOffsetY >= -spriteHeight/2 && spriteOffsetY <= SCREEN_HEIGHT - spriteHeight/2) {
+  // Push the sprite to the screen using the manager
+  SpriteManager::draw(binaryStarHandle, spriteOffsetX, spriteOffsetY);
     
-    #ifdef ESP32
-    // Check memory before push
-    if (ESP.getFreeHeap() < 5000) {
-      Serial.println("[BinaryStar] Memory critically low before push, using direct draw");
-      SpriteManager::safeDeleteSprite(binaryStarSprite, "BinaryStar");
-      binaryStarSpriteCreated = false;
-      drawBinaryStarDirect();
-      return;
-    }
-    #endif
-    
-    // Push sprite with full clear of area before
-    tft.fillRect(spriteOffsetX, spriteOffsetY, spriteWidth, spriteHeight, BG_COLOR);
-    binaryStarSprite.pushSprite(spriteOffsetX, spriteOffsetY);
-    
-    #ifdef ESP32
-    // Check if push caused memory issues
-    if (ESP.getFreeHeap() < 4000) {
-      Serial.println("[BinaryStar] Memory critically low after push, freeing resources");
-      SpriteManager::safeDeleteSprite(binaryStarSprite, "BinaryStar");
-      binaryStarSpriteCreated = false;
-    }
-    #endif
-  } else {
-    #ifdef ESP32
-    Serial.println("[BinaryStar] Sprite position out of bounds, using direct draw");
-    #endif
-    binaryStarSprite.deleteSprite();
-    binaryStarSpriteCreated = false;
-    drawBinaryStarDirect();
-  }
+  forceRedrawBinaryStar = false;
 }
 
 // Implement direct drawing fallback using the same parameters
@@ -381,82 +333,31 @@ void drawBinaryStarDirect() {
 
 // Implement cleanup with extra clearing
 void eraseBinaryStar() {
-  // Store sprite state before deletion
-  bool wasCreated = binaryStarSpriteCreated;
-  
-  #ifdef ESP32
-  Serial.printf("[BinaryStar] Erasing binary star at %d,%d size %d\n", 
-                prevBinaryStarX, prevBinaryStarY, prevBinaryStarSize);
-  #endif
-  
-  // Delete the sprite using the safer method if it exists
-  if (wasCreated) {
-    // Use the new safe delete method from SpriteManager
-    SpriteManager::safeDeleteSprite(binaryStarSprite, "BinaryStar");
-    binaryStarSpriteCreated = false;
+  // Use handle and SpriteManager::destroy
+  if (binaryStarHandle.id != 0) {
+    Serial.println("[BinaryStar] Erasing using SpriteManager::destroy");
+    int16_t spriteW = SpriteManager::getWidth(binaryStarHandle);
+    int16_t spriteH = SpriteManager::getHeight(binaryStarHandle);
+    if (spriteW > 0 && spriteH > 0) {
+        int spriteOffsetX = prevBinaryStarX - spriteW / 2;
+        int spriteOffsetY = prevBinaryStarY - spriteH / 2;
+        tft.fillRect(spriteOffsetX, spriteOffsetY, spriteW, spriteH, BG_COLOR);
   } else {
-    #ifdef ESP32
-    Serial.println("[BinaryStar] Erase called, sprite not valid or created.");
-    #endif
+        // Fallback clear if dimensions couldn't be retrieved
+        Serial.println("[BinaryStar] Warning: Could not get sprite dimensions for clearing. Using previous size.");
+        tft.fillRect(prevBinaryStarX - prevBinaryStarSize/2, prevBinaryStarY - prevBinaryStarSize/2, 
+                     prevBinaryStarSize, prevBinaryStarSize, BG_COLOR);
+    }
+    SpriteManager::destroy(binaryStarHandle);
+    binaryStarHandle = {0};
+  } else {
+    // If no handle, clear based on previous size used for direct drawing
+    Serial.println("[BinaryStar] Erasing direct draw area.");
+    tft.fillRect(prevBinaryStarX - prevBinaryStarSize/2, prevBinaryStarY - prevBinaryStarSize/2, 
+                 prevBinaryStarSize, prevBinaryStarSize, BG_COLOR);
   }
   
-  // Calculate area to clear using saved values
-  int eraseSize = 0;
-  
-  // Use previous saved values if we have them
-  if (prevBinaryStarSize > 0) {
-    eraseSize = prevBinaryStarSize;
-  } else {
-    // Fallback calculation
-    float scale_val = objectScale * scaleFactor;
-    float orbitScaleVal_erase = scale_f(15.0f) * scale_val;
-    int orbitRadius_erase = static_cast<int>(scale_i(orbitScaleVal_erase));
-    eraseSize = std::max(100, orbitRadius_erase * 3);
-  }
-  
-  // Add extra margin to eraseSize to catch flickering dots
-  eraseSize = eraseSize * 1.2;
-  
-  // Safety bounds check to prevent drawing outside screen
-  int left = prevBinaryStarX - eraseSize/2;
-  int top = prevBinaryStarY - eraseSize/2;
-  if (left < 0) left = 0;
-  if (top < 0) top = 0;
-  
-  int right = left + eraseSize;
-  int bottom = top + eraseSize;
-  if (right > SCREEN_WIDTH) right = SCREEN_WIDTH;
-  if (bottom > SCREEN_HEIGHT) bottom = SCREEN_HEIGHT;
-  
-  int width = right - left;
-  int height = bottom - top;
-  
-  if (width > 0 && height > 0) {
-    #ifdef ESP32
-    Serial.printf("[BinaryStar] Clearing screen area %d,%d %dx%d\n", left, top, width, height);
-    #endif
-    
-    // Clear the screen area - use multiple passes to ensure complete clearing
-    tft.fillRect(left, top, width, height, BG_COLOR);
-    
-    // Add a second clear for extra safety in case of memory corruption
-    delay(5); // Small delay to allow display to update
-    tft.fillRect(left, top, width, height, BG_COLOR);
-  } else {
-    #ifdef ESP32
-    Serial.println("[BinaryStar] Invalid clear region calculated");
-    #endif
-    
-    // Fallback clear - use a minimal reasonable area around object position
-    tft.fillRect(prevBinaryStarX - 50, prevBinaryStarY - 50, 100, 100, BG_COLOR);
-    
-    // Add a second clear for extra safety
-    delay(5);
-    tft.fillRect(prevBinaryStarX - 50, prevBinaryStarY - 50, 100, 100, BG_COLOR);
-  }
-  
-  // Reset tracking variables
-  prevBinaryStarSize = 0;
+  prevBinaryStarX = 0; prevBinaryStarY = 0; prevBinaryStarSize = 0; // Reset position info
 }
 
 /**

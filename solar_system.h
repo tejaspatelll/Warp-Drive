@@ -60,8 +60,8 @@ static int prevOrbitRadii[4]; // Stores scaled orbit radii
 static int prevPlanetX[4], prevPlanetY[4], prevPlanetRadius[4];
 
 // Sprite buffering for solar system
-static TFT_eSprite sunSprite = TFT_eSprite(&tft);  // Sprite for sun
-static TFT_eSprite planetSprites[4] = {TFT_eSprite(&tft), TFT_eSprite(&tft), TFT_eSprite(&tft), TFT_eSprite(&tft)};  // Sprites for planets
+static SpriteHandle sunHandle = {0};
+static SpriteHandle planetHandles[4] = {{0}, {0}, {0}, {0}};
 static bool solarSystemSpritesCreated = false;  // Flag to track if sprites are created
 static bool forceRedrawSun = true; // Always draw sun on first frame
 static bool forceRedrawPlanets = true; // Always draw planets on first frame
@@ -110,21 +110,33 @@ void drawSolarSystem() {
         }
 
         // Create sprites for double buffering
-        if (!solarSystemSpritesCreated) {
-            // Create sun sprite with padding for corona
-            int sunSpriteSize = sunRadius * 2 + 8;
-            SpriteManager::safeDeleteSprite(sunSprite, "SolarSystem-Sun"); // Delete before creating new
-            SpriteManager::createObjectSprite(sunSprite, sunSpriteSize, "SolarSystem-Sun", true);
-            
-            // Create planet sprites
-            for (int i = 0; i < 4; i++) {
-                int planetSpriteSize = maxPlanetRadius * 2 + 4;
-                SpriteManager::safeDeleteSprite(planetSprites[i], "SolarSystem-Planet"); // Delete before creating new
-                SpriteManager::createObjectSprite(planetSprites[i], planetSpriteSize, "SolarSystem-Planet", true);
+        if (sunHandle.id == 0) { // Check if sun sprite needs creation
+            int sunSpriteSize = sunRadius * 2 + 8; // Padding for corona
+            Serial.printf("[SolarSystem] Creating sun sprite: %dx%d\n", sunSpriteSize, sunSpriteSize);
+            SpriteAllocResult sunRes = SpriteManager::create(sunSpriteSize, sunSpriteSize, true, sunHandle); // Prefer PSRAM
+            if (sunRes == SpriteAllocResult::Success || sunRes == SpriteAllocResult::SuccessShrunk || sunRes == SpriteAllocResult::FellBackToHeap) {
+                Serial.println("[SolarSystem] Sun sprite created.");
+                forceRedrawSun = true;
+            } else {
+                Serial.printf("[SolarSystem] ERROR: Failed to create sun sprite! Result: %d\n", (int)sunRes);
+                sunHandle = {0};
             }
-            solarSystemSpritesCreated = (sunSprite.width() > 0); // Check sun sprite as representative
-            forceRedrawSun = true;
-            forceRedrawPlanets = true;
+        }
+
+        // Create planet sprites
+        for (int i = 0; i < 4; i++) {
+            if (planetHandles[i].id == 0) { // Check if this planet sprite needs creation
+                int planetSpriteSize = maxPlanetRadius * 2 + 4; // Padding for glow
+                Serial.printf("[SolarSystem] Creating planet %d sprite: %dx%d\n", i, planetSpriteSize, planetSpriteSize);
+                SpriteAllocResult planetRes = SpriteManager::create(planetSpriteSize, planetSpriteSize, true, planetHandles[i]); // Prefer PSRAM
+                if (planetRes == SpriteAllocResult::Success || planetRes == SpriteAllocResult::SuccessShrunk || planetRes == SpriteAllocResult::FellBackToHeap) {
+                    Serial.printf("[SolarSystem] Planet %d sprite created.\n", i);
+                    forceRedrawPlanets = true; // Force redraw for all if one is created
+                } else {
+                     Serial.printf("[SolarSystem] ERROR: Failed to create planet %d sprite! Result: %d\n", i, (int)planetRes);
+                     planetHandles[i] = {0};
+                }
+            }
         }
 
         // The starfield drawing here (for 20 stars) was in the original init block.
@@ -173,63 +185,60 @@ void drawSolarSystem() {
     // Always draw sun sprite - sun should always be visible
     // Only recreate the buffer contents when needed
     if (forceRedrawSun) {
-        // Calculate sprite dimensions
-        int spriteWidth = sunRadius * 2 + 8;
-        int spriteHeight = sunRadius * 2 + 8;
-        int spriteCenter = spriteWidth / 2;
-        
-        // Check if sprite is valid before using it
-        if (sunSprite.width() > 0 && sunSprite.height() > 0) {
-            // Clear sprite with transparent color
-            sunSprite.fillSprite(TFT_BLACK); // Use black instead of transparent
+        // Get sprite reference
+        TFT_eSprite* sunSpritePtr = SpriteManager::getSpriteRef(sunHandle);
+        if (sunSpritePtr) { // Check if sprite is valid before using it
+            int spriteWidth = sunSpritePtr->width();
+            int spriteHeight = sunSpritePtr->height();
+            int spriteCenter = spriteWidth / 2; // Assuming square sprite
+
+            // Clear sprite 
+            sunSpritePtr->fillSprite(BG_COLOR); // Use BG_COLOR for clearing
             
             float pulseFactor = (sin(t * 2.0f) + 1.0f) / 2.0f;
             
-            // Draw corona in sprite
+            // Draw corona in sprite (use spritePtr)
             for (int r_sun_corona = sunRadius + 2; r_sun_corona > sunRadius; r_sun_corona--) {
                 uint8_t brightness = map(r_sun_corona, sunRadius, sunRadius + 2, 255, 100);
-                // Add some variation based on flare state
                 if (flareActive) {
                     brightness = min(255, brightness + 20);
                 }
-                uint16_t coronaColor = tft.color565(brightness, brightness, 0);
-                sunSprite.drawCircle(spriteCenter, spriteCenter, r_sun_corona, coronaColor);
+                uint16_t coronaColor = sunSpritePtr->color565(brightness, brightness, 0);
+                sunSpritePtr->drawCircle(spriteCenter, spriteCenter, r_sun_corona, coronaColor);
             }
             
-            // Draw sun body in sprite
-            uint16_t sunColor = tft.color565(255, 255, 0); // Set to a constant yellow color
-
-            // If flare is active, increase brightness
+            // Draw sun body in sprite (use spritePtr)
+            uint16_t sunColor = sunSpritePtr->color565(255, 255, 0); 
             if (flareActive) {
-                sunColor = tft.color565(255, 255, 100); // Brighter yellow during flares
+                sunColor = sunSpritePtr->color565(255, 255, 100);
             }
-            sunSprite.fillCircle(spriteCenter, spriteCenter, sunRadius, sunColor);
+            sunSpritePtr->fillCircle(spriteCenter, spriteCenter, sunRadius, sunColor);
             
             forceRedrawSun = false; // Reset flag
         } else {
-            // Sprite creation failed, draw directly to screen as fallback
+            // Sprite creation failed or handle invalid, draw directly to screen as fallback
+            Serial.println("[SolarSystem] ERROR: Sun sprite handle invalid or ref failed - drawing directly.");
             tft.fillCircle(centerX, centerY, sunRadius, tft.color565(255, 255, 0));
-            
-            // Log the error
-            #ifdef ESP32
-            Serial.println("ERROR: Sun sprite invalid - drew directly to screen");
-            #endif
+            forceRedrawSun = false; // Still reset flag
         }
     }
     
-    // Push sprite to screen at the correct position
-    // Calculate center of sun sprite
-    int sunSpriteWidth = sunRadius * 2 + 8;
-    int sunSpriteCenter = sunSpriteWidth / 2;
-    
-    // Check if sprite is valid before pushing
-    if (sunSprite.width() > 0 && sunSprite.height() > 0) {
-        sunSprite.pushSprite(centerX - sunSpriteCenter, centerY - sunSpriteCenter);
+    // Push sprite to screen at the correct position using handle
+    if (sunHandle.id != 0) {
+        int16_t sunSpriteW = SpriteManager::getWidth(sunHandle);
+        if (sunSpriteW > 0) { // Check if width is valid
+             int sunSpriteCenter = sunSpriteW / 2; // Use actual sprite width
+             SpriteManager::draw(sunHandle, centerX - sunSpriteCenter, centerY - sunSpriteCenter);
+        } else {
+            // Handle case where entry not found but handle was valid (shouldn't happen)
+            tft.fillCircle(centerX, centerY, sunRadius, tft.color565(255, 255, 0));
+            Serial.println("[SolarSystem] ERROR: Sun sprite width invalid despite valid handle - drawing directly.");
+        }
     } else {
-        // If sprite is invalid, draw directly to screen
+        // If sprite handle is invalid, draw directly to screen
         tft.fillCircle(centerX, centerY, sunRadius, tft.color565(255, 255, 0));
         #ifdef ESP32
-        Serial.println("ERROR: Sun sprite invalid during push - drew directly to screen");
+        Serial.println("[SolarSystem] ERROR: Sun sprite handle invalid during push - drawing directly.");
         #endif
     }
     
@@ -238,7 +247,7 @@ void drawSolarSystem() {
     prevSunRadius = sunRadius; // Store radius for next frame's erase
 
     // Draw faint orbit paths (EVERY FRAME)
-    for (int i = 0; i < 2; i++) {
+    for (int i = 0; i < 4; i++) {
         int currentOrbitDrawRadius = baseOrbitRadii[i] * objectScale; // Apply object-specific scale
         for (int j = 0; j < 360; j += 5) { // Draw orbit as series of pixels
             float angle_rad = j * PI / 180.0f;
@@ -253,55 +262,50 @@ void drawSolarSystem() {
 
     // Update and draw planets using sprite buffers
     // Always redraw planets since they're moving
-    for (int i = 0; i < 2; i++) {
+    for (int i = 0; i < 4; i++) {
         int currentPlanetOrbitRadius = baseOrbitRadii[i] * objectScale; // Actual orbit radius for positioning
         int planetX = centerX + round(currentPlanetOrbitRadius * cos(t * speeds[i]));
         int planetY = centerY + round(currentPlanetOrbitRadius * sin(t * speeds[i]));
         int planetDrawRadius = planetSizes[i] * objectScale; // Visual radius of the planet
         
-        // Calculate sprite dimensions
-        int spriteWidth = maxPlanetRadius * 2 + 4;
-        int spriteHeight = maxPlanetRadius * 2 + 4;
-        int spriteCenterX = spriteWidth / 2;
-        int spriteCenterY = spriteHeight / 2;
+        // Draw planet in sprite buffer if needed
+        if (forceRedrawPlanets) {
+            TFT_eSprite* planetSpritePtr = SpriteManager::getSpriteRef(planetHandles[i]);
+            if (planetSpritePtr) { // Check sprite validity
+                int planetSpriteW = planetSpritePtr->width();
+                int planetSpriteCenter = planetSpriteW / 2;
+                planetSpritePtr->fillSprite(BG_COLOR); // Clear sprite
+                
+                // Draw planet features
+                planetSpritePtr->fillCircle(planetSpriteCenter, planetSpriteCenter, planetDrawRadius, planetColors[i]);
+                
+                // Simple shading/highlight
+                //uint16_t highlightColor = tft.color565(255, 255, 255); // Use global tft for color565
+                //uint16_t shadowColor = tft.color565(0, 0, 0);
+                //planetSpritePtr->fillCircle(planetSpriteCenter - planetDrawRadius/3, planetSpriteCenter - planetDrawRadius/3, planetDrawRadius/3, highlightColor);
+                //planetSpritePtr->fillCircle(planetSpriteCenter + planetDrawRadius/3, planetSpriteCenter + planetDrawRadius/4, planetDrawRadius/4, shadowColor);
+                
+            } else {
+                 Serial.printf("[SolarSystem] ERROR: Planet %d sprite handle invalid or ref failed - drawing directly.\n", i);
+                 tft.fillCircle(planetX, planetY, planetDrawRadius, planetColors[i]); // Fallback direct draw
+            }
+        }
         
-        // Check if sprite is valid before using it
-        if (planetSprites[i].width() > 0 && planetSprites[i].height() > 0) {
-            // Clear planet sprite
-            planetSprites[i].fillSprite(TFT_BLACK); // Use black instead of transparent
-            
-            // Draw planet in sprite buffer
-            // Planet glow
-            for (int r_planet_glow = planetDrawRadius + 1; r_planet_glow > planetDrawRadius; r_planet_glow--) {
-                uint8_t brightness = map(r_planet_glow, planetDrawRadius, planetDrawRadius + 1, 255, 100);
-                uint16_t glowColor = tft.color565(
-                    ((tft.color565(255, 255, 255) >> 11) & 0x1F) * brightness / 255,
-                    ((tft.color565(255, 255, 255) >> 5) & 0x3F) * brightness / 255,
-                    (tft.color565(255, 255, 255) & 0x1F) * brightness / 255
-                );
-                planetSprites[i].drawCircle(spriteCenterX, spriteCenterY, r_planet_glow, glowColor);
+        // Push planet sprite using handle
+        if (planetHandles[i].id != 0) {
+            int16_t planetSpriteW = SpriteManager::getWidth(planetHandles[i]);
+            if (planetSpriteW > 0) { // Check width validity
+                 int planetSpriteCenter = planetSpriteW / 2; // Use actual sprite width
+                 SpriteManager::draw(planetHandles[i], planetX - planetSpriteCenter, planetY - planetSpriteCenter);
+            } else {
+                 tft.fillCircle(planetX, planetY, planetDrawRadius, planetColors[i]); // Fallback direct draw
+                 Serial.printf("[SolarSystem] ERROR: Planet %d sprite width invalid - drawing directly.\n", i);
             }
-            
-            // Planet body
-            planetSprites[i].fillCircle(spriteCenterX, spriteCenterY, planetDrawRadius, planetColors[i]);
-
-            // Rings for planet at index 2 (Saturn-like)
-            if (i == 2) {
-                planetSprites[i].drawCircle(spriteCenterX, spriteCenterY, planetDrawRadius + 1, COLOR_BORDER);
-                planetSprites[i].drawCircle(spriteCenterX, spriteCenterY, planetDrawRadius + 2, COLOR_BORDER);
-                planetSprites[i].drawCircle(spriteCenterX, spriteCenterY, planetDrawRadius + 3, COLOR_BORDER);
-            }
-
-            // Push sprite to screen
-            planetSprites[i].pushSprite(planetX - spriteCenterX, planetY - spriteCenterY);
         } else {
-            // Sprite creation failed, draw directly to screen as fallback
-            tft.fillCircle(planetX, planetY, planetDrawRadius, planetColors[i]);
-            
-            // Log the error
-            #ifdef ESP32
-            Serial.printf("ERROR: Planet %d sprite invalid - drew directly to screen\n", i);
-            #endif
+             tft.fillCircle(planetX, planetY, planetDrawRadius, planetColors[i]); // Fallback direct draw
+             #ifdef ESP32
+             Serial.printf("[SolarSystem] ERROR: Planet %d sprite handle invalid during push - drawing directly.\n", i);
+             #endif
         }
 
         // Draw moon for planet at index 1 directly on screen (small, no need for sprite)
@@ -429,72 +433,72 @@ void drawSolarSystem() {
 
 // Update eraseSolarSystem to free sprites
 void eraseSolarSystem() {
-    if (prevSunRadius > 0) {
-        // Clear sun and corona with larger buffer for complete clearing
-        tft.fillCircle(prevSunX, prevSunY, prevSunRadius + 7, BG_COLOR);
-
-        // Clear planets, rings, and moon
-        for (int i = 0; i < 4; i++) {
-            if (prevPlanetRadius[i] > 0) {
-                tft.fillCircle(prevPlanetX[i], prevPlanetY[i], prevPlanetRadius[i] + 6, BG_COLOR);
-            }
+    // Destroy sprites using handles
+    Serial.println("[SolarSystem] Erasing using SpriteManager::destroy");
+    if (sunHandle.id != 0) {
+        int16_t sunW = SpriteManager::getWidth(sunHandle);
+        int16_t sunH = SpriteManager::getHeight(sunHandle);
+        if (sunW > 0 && sunH > 0) {
+            tft.fillRect(prevSunX - sunW / 2, prevSunY - sunH / 2, sunW, sunH, BG_COLOR);
         }
-
-        // Clear stars
-        for (int i = 0; i < 20; i++) {
-            tft.drawPixel(stars[i].x, stars[i].y, BG_COLOR);
-        }
-
-        // Clear Orbits
-        for (int i = 0; i < 4; i++) {
-            if (prevOrbitRadii[i] > 0) {
-                tft.fillCircle(objectX, objectY, prevOrbitRadii[i] + 1, BG_COLOR);
-            }
-        }
-        
-        // Clear flare particles
-        for (int i = 0; i < MAX_FLARE_PARTICLES; i++) {
-            if (flareParticles[i].active) {
-                tft.drawPixel(flareParticles[i].x, flareParticles[i].y, BG_COLOR);
-                flareParticles[i].active = false;
-            }
-        }
-
-        // Free sprite resources
-        if (solarSystemSpritesCreated) {
-            SpriteManager::safeDeleteSprite(sunSprite, "SolarSystem-Sun");
-            for (int i = 0; i < 2; i++) {
-                SpriteManager::safeDeleteSprite(planetSprites[i], "SolarSystem-Planet");
-            }
-            solarSystemSpritesCreated = false;
-            // Allow time for memory operations to complete
-            delay(10);
-        }
-
-        // Reset tracking variables
-        prevSunRadius = 0;
-        for (int i = 0; i < 2; i++) {
-            // Clear orbit paths
-            tft.fillCircle(objectX, objectY, prevOrbitRadii[i] + 1, BG_COLOR);
-            prevOrbitRadii[i] = 0;
-            prevPlanetRadius[i] = 0;
-        }
-        
-        // Check memory status after cleanup
-        #ifdef ESP32
-        uint32_t freeHeap = ESP.getFreeHeap();
-        uint32_t freePsram = ESP.getFreePsram();
-        Serial.printf("Solar System cleanup - Heap: %u, PSRAM: %u\n", freeHeap, freePsram);
-        
-        // If memory is critically low after cleanup, we might have a leak
-        if (freeHeap < 5000 || freePsram < 5000) {
-            Serial.println("CRITICAL: Memory very low after solar system cleanup!");
-            delay(100); // Give serial time to send
-        }
-        #endif
-        
-        solarSystemInitialized = false;
+        SpriteManager::destroy(sunHandle);
+        sunHandle = {0};
     }
+    for (int i = 0; i < 4; i++) {
+        if (planetHandles[i].id != 0) {
+             int16_t planetW = SpriteManager::getWidth(planetHandles[i]);
+             int16_t planetH = SpriteManager::getHeight(planetHandles[i]);
+             if (planetW > 0 && planetH > 0) {
+                 tft.fillRect(prevPlanetX[i] - planetW / 2, prevPlanetY[i] - planetH / 2, planetW, planetH, BG_COLOR);
+             }
+            SpriteManager::destroy(planetHandles[i]);
+            planetHandles[i] = {0};
+        }
+    }
+    
+    // Clear orbit paths (can be slow, consider optimizing if needed)
+    for (int i = 0; i < 4; i++) {
+        if (prevOrbitRadii[i] > 0) {
+            tft.fillCircle(objectX, objectY, prevOrbitRadii[i] + 1, BG_COLOR);
+        }
+    }
+    
+    // Clear stars
+    for (int i = 0; i < 20; i++) {
+        tft.drawPixel(stars[i].x, stars[i].y, BG_COLOR);
+    }
+    
+    // Clear flare particles
+    for (int i = 0; i < MAX_FLARE_PARTICLES; i++) {
+        if (flareParticles[i].active) {
+            tft.drawPixel(flareParticles[i].x, flareParticles[i].y, BG_COLOR);
+            flareParticles[i].active = false;
+        }
+    }
+
+    // Reset tracking variables
+    prevSunRadius = 0;
+    for (int i = 0; i < 4; i++) {
+        // Clear orbit paths
+        tft.fillCircle(objectX, objectY, prevOrbitRadii[i] + 1, BG_COLOR);
+        prevOrbitRadii[i] = 0;
+        prevPlanetRadius[i] = 0;
+    }
+    
+    // Check memory status after cleanup
+    #ifdef ESP32
+    uint32_t freeHeap = ESP.getFreeHeap();
+    uint32_t freePsram = ESP.getFreePsram();
+    Serial.printf("Solar System cleanup - Heap: %u, PSRAM: %u\n", freeHeap, freePsram);
+    
+    // If memory is critically low after cleanup, we might have a leak
+    if (freeHeap < 5000 || freePsram < 5000) {
+        Serial.println("CRITICAL: Memory very low after solar system cleanup!");
+        delay(100); // Give serial time to send
+    }
+    #endif
+    
+    solarSystemInitialized = false;
 }
 
 #endif // SOLAR_SYSTEM_H
