@@ -29,10 +29,12 @@ namespace {
   SupernovaParticle supernovaParticles[MAX_SUPERNOVA_PARTICLES];
   bool supernovaInitialized = false;
   unsigned long supernovaStartTime = 0;
-  int supernovaPhase = 0;  // 0=initial, 1=expanding, 2=fading
   int supernovaRadius = 0;
   int prevSupernovaX = 0, prevSupernovaY = 0;
 }
+
+// Declare supernovaPhase as extern for global access
+extern int supernovaPhase;
 
 /**
  * Draws a supernova - an exploding star with expanding shock wave and debris

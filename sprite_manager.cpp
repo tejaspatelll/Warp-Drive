@@ -236,9 +236,9 @@ SpriteAllocResult SpriteManager::create(int16_t reqW,
   Serial.println("[SpriteMgr] Searching for reusable entry or creating new..."); // Log entry point
   dumpReport(); // Log state *before* potentially modifying pool
 
-  // Try to reuse a non-alive entry
+  // Try to reuse a non-alive entry with a valid ID
   for (auto& existingEntry : _pool) {
-    if (!existingEntry.alive) {
+    if (!existingEntry.alive && existingEntry.id != 0) { // Only reuse if id != 0
       uint16_t newId = _generateNextId();
       Serial.printf("[SpriteMgr] Reusing pool entry (old ID: %u) for new sprite ID: %u\n", existingEntry.id, newId);
       // Free any existing buffer

@@ -345,6 +345,7 @@ void setLedModeMenu(int currentSelection, int numItems);
 void setLedModeQuiz(bool answerCorrect, bool waitingForAnswer);
 void setLedModeOff();
 void setLedModeStory();
+void setLedModeWarp();
 
 // Add new variable to track power state
 bool isPoweredOn = true;  // Start powered on
@@ -364,6 +365,12 @@ int g_boxWidth = 0;
 int g_boxHeight = 0;
 int g_menuTextSize = 0;
 int g_charWidth = 0;
+
+// Pulsar global variable definition
+float prevAngle = 0.0f;
+
+// Supernova global variable definition
+int supernovaPhase = 0;
 
 // Function to initialize scaling factors
 void initializeScaling() {
@@ -602,6 +609,7 @@ void loop() {
         processInput();
         // Update warp stars
         updateWarpStars();
+        setLedModeWarp(); // Set LED for warp mode
         break;
              
              
@@ -629,7 +637,51 @@ void loop() {
         
         // Only draw celestial objects if in discovery mode and object should be shown
         if (currentState == State::DISCOVERY && showingCelestialObject) {
-          drawCelestialObject();
+            // Set LED mode for discovery with the current object name
+            switch (currentObject) {
+                case CelestialObject::STAR:
+                    setLedModeDiscovery("Star");
+                    break;
+                case CelestialObject::PLANET:
+                    setLedModeDiscovery("Planet");
+                    break;
+                case CelestialObject::NEBULA:
+                    setLedModeDiscovery("Nebula");
+                    break;
+                case CelestialObject::GALAXY:
+                    setLedModeDiscovery("Galaxy");
+                    break;
+                case CelestialObject::SOLAR_SYSTEM:
+                    setLedModeDiscovery("Solar System");
+                    break;
+                case CelestialObject::ASTEROID_FIELD:
+                    setLedModeDiscovery("Asteroid Field");
+                    break;
+                case CelestialObject::BLACK_HOLE:
+                    setLedModeDiscovery("Black Hole");
+                    break;
+                case CelestialObject::PULSAR:
+                    setLedModeDiscovery("Pulsar");
+                    break;
+                case CelestialObject::SUPERNOVA:
+                    setLedModeDiscovery("Supernova");
+                    break;
+                case CelestialObject::COMET:
+                    setLedModeDiscovery("Comet");
+                    break;
+                case CelestialObject::BINARY_STAR:
+                    setLedModeDiscovery("Binary Star");
+                    break;
+                case CelestialObject::SPACE_STATION:
+                    setLedModeDiscovery("Space Station");
+                    break;
+                default:
+                    setLedModeDiscovery("");
+                    break;
+            }
+            drawCelestialObject();
+        } else if (currentState == State::DISCOVERY && !showingCelestialObject) {
+            setLedModeDiscovery("None"); // Subtle breathing for empty space
         }
         
 
@@ -1917,21 +1969,19 @@ void updateQuizMode() {
   if (quizPopupState.active) {
     int popupResult = processQuizPopupInput(btnEvent);
     if (popupResult == 1) { // Left button: Try Again or Next
-      uiInitialized = false; // <--- ADD THIS LINE
+      uiInitialized = false; // Reset UI flag for next question/redraw
       if (quizState.answeredCorrectly) {
         // Next Question
         setupQuizOptions();
         quizState.answeredCorrectly = false;
         quizState.showHint = false;
         setLedModeQuiz(false, true); // Reset for next question
-        tft.fillScreen(BG_COLOR);
         updateQuiz();
       } else {
         // Try Again: just redraw quiz
         quizState.answeredCorrectly = false;
         quizState.showHint = false;
         setLedModeQuiz(false, true); // Reset for try again
-        tft.fillScreen(BG_COLOR);
         updateQuiz();
       }
     } else if (popupResult == 2) { // Right button: Menu

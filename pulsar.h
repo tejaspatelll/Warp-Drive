@@ -19,9 +19,11 @@ namespace {
     bool pulsarInitialized = false;
     int pulsarRadius = 0;
     int prevPulsarX = 0, prevPulsarY = 0;
-    float prevAngle = 0;
     uint8_t intensityMap[128]; // Pre-calculated intensity map for beams. Must match max supported screen width.
 }
+
+// Declare prevAngle as extern for global access
+extern float prevAngle;
 
 // Function prototypes for internal functions
 void drawPulsarBeam(int centerX, int centerY, float angle, int baseRadius, float scale, float intensity, int maxLength);

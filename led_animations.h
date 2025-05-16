@@ -21,6 +21,8 @@ void setLedModeMenu(int currentSelection, int numItems);
 void setLedModeQuiz(bool answerCorrect, bool waitingForAnswer);
 void setLedModeOff();
 void setLedModeStory(); // New: Set LED mode for Story Mode
+void setLedModeWarp(); // New: Set LED mode for Warp Mode
+void setLedModeDiscovery(const char* objectName); // New: Set LED mode for Discovery Mode (objectName can be "None" for empty space)
 void updateLedEffects(); // General update function to be called in main loop
 
 #endif // LED_ANIMATIONS_H 

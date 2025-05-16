@@ -37,8 +37,6 @@ static String lastFact = "";
 static bool uiInitialized = false;
 
 // Add tracking for shown objects
-extern SpriteHandle quizHandle; // Use the handle declared in the .ino file
-
 static bool objectsShownInQuiz[STORY_STOPS_DATA_COUNT] = {false};
 static int objectsRemainingInQuiz = STORY_STOPS_DATA_COUNT;
 
@@ -137,37 +135,6 @@ void startQuiz() {
     setupQuizOptions();
     quizPopupState.active = false;
 
-    // Create quiz sprite using the handle and new manager
-    if (quizHandle.id != 0) { // Check if handle is already valid (sprite exists)
-        Serial.println("[Quiz] Destroying existing quiz sprite before starting new quiz.");
-        SpriteManager::destroy(quizHandle);
-        quizHandle = {0};
-    }
-
-    // Determine desired sprite size (example: half screen)
-        int quizSpriteWidth = SCREEN_WIDTH / 2; 
-        int quizSpriteHeight = SCREEN_HEIGHT / 2;
-
-    Serial.printf("[Quiz] Attempting to create quiz sprite: %dx%d\n", quizSpriteWidth, quizSpriteHeight);
-    // Create the sprite, preferring Heap for UI elements
-    SpriteAllocResult res = SpriteManager::create(quizSpriteWidth, quizSpriteHeight, false, quizHandle);
-
-    if (res == SpriteAllocResult::Success || res == SpriteAllocResult::SuccessShrunk || res == SpriteAllocResult::FellBackToHeap) {
-        Serial.println("[Quiz] Quiz sprite created successfully.");
-        // Optional: Get sprite reference if needed immediately for drawing
-        if (auto* spritePtr = SpriteManager::getSpriteRef(quizHandle)) {
-             spritePtr->fillSprite(BG_COLOR); // Initial fill
-             // Draw initial static elements into the sprite here if desired
-        } else {
-             Serial.println("[Quiz] ERROR: Could not get sprite reference after creation.");
-             SpriteManager::destroy(quizHandle); // Destroy if we can't get ref
-             quizHandle = {0};
-        }
-    } else {
-        Serial.printf("[Quiz] ERROR: Failed to create quiz sprite! Result: %d\n", (int)res);
-        quizHandle = {0}; // Ensure handle is invalid
-    }
-
     tft.fillScreen(BG_COLOR);
     uiInitialized = false;
     updateQuiz();
@@ -178,12 +145,6 @@ void updateQuiz() {
 
     // Get the current quiz object details
     const StoryStop& obj = STORY_STOPS_DATA[quizState.quizObjectIndex];
-
-    // Get quiz sprite reference for drawing (if needed)
-    TFT_eSprite* quizSpritePtr = nullptr;
-    if (quizHandle.id != 0) {
-        quizSpritePtr = SpriteManager::getSpriteRef(quizHandle);
-    }
 
     // Set object position first
     objectX = SCREEN_WIDTH / 2;
@@ -320,11 +281,6 @@ void updateQuiz() {
     } else if (quizState.showHint) {
         setQuizPopupFact(STORY_STOPS_DATA[quizState.quizObjectIndex].fact);
         showQuizPopup(false);
-    }
-
-    // Push the quiz sprite if it exists (optional, if UI elements were drawn to it)
-    if (quizHandle.id != 0) {
-        // Adjust position as needed
     }
 }
 
