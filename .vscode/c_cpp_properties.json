@@ -1,0 +1,36 @@
+{
+  "configurations": [
+    {
+      "name": "esp32.esp32",
+      "includePath": [
+        "/Users/tejaspatel/Library/Arduino15/packages/esp32/hardware/esp32/3.2.0/tools/sdk/include",
+        "/Users/tejaspatel/Library/Arduino15/packages/esp32/hardware/esp32/3.2.0/libraries/TFT_eSPI/src",
+        "/Users/tejaspatel/Library/Arduino15/packages/esp32/hardware/esp32/3.2.0/libraries/FastLED/src"
+      ],
+      "defines": [],
+      "compilerPath": "/Users/tejaspatel/Library/Arduino15/packages/esp32/tools/xtensa-esp32-elf/2.0.11/bin/xtensa-esp32-elf-g++",
+      "cStandard": "gnu11",
+      "cppStandard": "gnu++14",
+      "intelliSenseMode": "gcc-x64",
+      "compileCommands": "${workspaceFolder}/build/compile_commands.json",
+      "configurationProvider": "ms-vscode.cpptools",
+      "intelliSense": {
+        "databaseLayout": "VFSLayout",
+        "compilationDatabase": "${workspaceFolder}/build",
+        "cStandard": "gnu11",
+        "cppStandard": "gnu++14",
+        "intelliSenseMode": "gcc-x64"
+      },
+      "include": [],
+      "browse": {
+        "database": "${workspaceFolder}/build/compile_commands.json",
+        "path": [
+          "${workspaceFolder}"
+        ]
+      },
+      "macros": [],
+      "env": {}
+    }
+  ],
+  "version": 4
+}

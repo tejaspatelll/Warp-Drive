@@ -53,10 +53,6 @@ extern int objectX;
 extern int objectY;
 extern float objectScale;
 
-// Screen dimensions for centering objects
-//const int SCREEN_WIDTH = 128; // Now use global SCREEN_WIDTH
-//const int SCREEN_HEIGHT = 128; // Now use global SCREEN_HEIGHT
-
 // Define story stop structure
 struct StoryStop {
     const char* name;              // Name of the celestial object
@@ -72,75 +68,75 @@ struct StoryStop {
 const StoryStop STORY_STOPS_DATA[] = {
     {
         "Our Sun", 
-        "A star, our Sun, the giver of light and warmth. Every living being on Earth owes its existence to this ball of nuclear fusion, our quiet companion in the cosmos.",
-        "The Sun contains 99.86% of all mass in the solar system.",
+        "At the heart of our cosmic neighborhood shines our Sun, a colossal ball of glowing gas. This magnificent star creates light and heat through nuclear fusion, turning hydrogen into helium deep within its core. Every plant that grows, every animal that moves, and every human who has ever lived depends on its steady radiance.",
+        "The Sun is so massive it contains 99.86% of all the matter in our solar system!",
         drawStar
     },
     {
-        "Planet Earth", 
-        "The pale blue dot. Suspended in a sunbeam. A mote of dust in the cosmic dark. Our home, the only world we\'ve known, fragile and precious beyond measure.",
-        "Earth is the only planet not named after a mythological god or goddess.",
-        drawPlanet
-    },
-    {
-        "Nebula", 
-        "The birthplace of stars. These vast clouds of gas and dust are cosmic nurseries where new suns take their first breath, illuminating the darkness with the promise of worlds yet to be.",
-        "The word nebula comes from Latin, meaning \'cloud\' or \'fog\'.",
-        drawNebula
-    },
-    {
-        "Galaxy", 
-        "Islands of stars in the cosmic ocean. Each galaxy contains billions of suns, and each of those stars might cradle worlds of unimaginable wonder waiting to be discovered.",
-        "There are estimated to be over 2 trillion galaxies in the observable universe.",
-        drawGalaxy
-    },
-    {
         "Solar System", 
-        "A family of worlds. Planets, moons, asteroids, and comets - all dancing to the gravitational symphony of their parent star, a cosmic mobile of matter in elegant orbit.",
-        "If the Sun were hollow, it could fit about 1.3 million Earths inside it.",
+        "Around our Sun orbits a family of worlds - planets, moons, asteroids, and comets. Like children around a parent, these bodies follow invisible paths shaped by gravity. Some planets are rocky like Earth, others are giant balls of gas like Jupiter. Each world tells its own unique story in our cosmic neighborhood.",
+        "If the Sun were hollow, more than a million Earths could fit inside it!",
         drawSolarSystem
     },
     {
+        "Planet Earth", 
+        "Here is our home - the pale blue dot suspended in a sunbeam. From space, there are no borders or countries, just oceans, clouds, and land. Earth is special because it has liquid water, breathable air, and thousands of different living things. It's the only place we know of where life exists in the entire universe.",
+        "Earth is the only planet not named after a god or goddess from ancient myths.",
+        drawPlanet
+    },
+    {
+        "Space Station", 
+        "Circling our Earth is humanity's first home away from home. The Space Station is like a house floating in space where astronauts live and work. From this outpost, people conduct experiments, observe our planet, and learn how to live in zero gravity. It represents our first step into becoming a spacefaring species.",
+        "The International Space Station zooms around Earth at about 28,000 kilometers per hour!",
+        drawSpaceStation
+    },
+    {
         "Asteroid Field", 
-        "The debris of creation. These rocky remnants tell the story of planets that might have been, celestial building blocks left over from the solar system\'s turbulent youth.",
-        "Most asteroids orbit in a belt between Mars and Jupiter.",
+        "Between Mars and Jupiter floats a ring of rocky leftovers from when our solar system formed. These asteroids are like cosmic building blocks that never became a planet. Some are tiny pebbles while others are as big as mountains. By studying them, scientists learn about the materials that built our solar system billions of years ago.",
+        "If you gathered all asteroids together, they would make a world smaller than our Moon.",
         drawAsteroidField
     },
     {
-        "Black Hole", 
-        "Where space and time end. These cosmic devourers bend reality itself, teaching us that gravity is not just a force, but a curvature in the fabric of spacetime.",
-        "If Earth were compressed to the density of a black hole, it would be the size of a cherry.",
-        drawBlackHole
+        "Comet", 
+        "From the cold edges of our solar system come visitors wrapped in glowing cloaks. Comets are cosmic snowballs made of ice, dust, and frozen gases. When they approach the Sun, the heat transforms some ice directly into gas, creating a beautiful tail that can stretch for millions of kilometers. These ancient travelers have remained mostly unchanged since the birth of our solar system.",
+        "A comet's tail always points away from the Sun, pushed by the solar wind.",
+        drawComet
+    },
+    {
+        "Nebula", 
+        "Imagine cosmic clouds stretching trillions of kilometers across space. These nebulae are where stars are born. Inside these colorful mixtures of gas and dust, gravity pulls material together until it becomes hot enough to spark the fire of a new star. When you look at a nebula, you're seeing both stellar nurseries and the beautiful remains of stars that died long ago.",
+        "The word 'nebula' comes from Latin, meaning 'cloud' or 'fog'.",
+        drawNebula
+    },
+    {
+        "Binary Star", 
+        "Not all stars live alone like our Sun. Many have companions, dancing with another star in an endless cosmic waltz. These binary stars orbit around each other, pulled by their mutual gravity. Sometimes they're twins of equal size, other times one is giant and the other small. Their dance can last billions of years, showing that even in the vastness of space, pairs are common.",
+        "More than half of all stars in our galaxy have at least one stellar companion!",
+        drawBinaryStar
     },
     {
         "Pulsar", 
-        "Cosmic lighthouses. The rapidly spinning corpses of massive stars, sweeping beams of radiation across the cosmos with clock-like precision, nature\'s most perfect timepieces.",
-        "Some pulsars rotate more than 700 times per second.",
+        "When certain stars die, they leave behind rapidly spinning cores called pulsars. These stellar lighthouses sweep beams of energy across space like cosmic beacons. A pulsar can spin hundreds of times each second with such perfect timing that they're more accurate than our best atomic clocks. They're nature's most precise timepieces, ticking away in the darkness of space.",
+        "Some pulsars rotate more than 700 times every second - faster than a kitchen blender!",
         drawPulsar
     },
     {
         "Supernova", 
-        "The spectacular death of stars. In their final moments, these stellar giants seed the cosmos with the heavy elements needed for life, a cosmic phoenix creating renewal from destruction.",
-        "A supernova can briefly outshine an entire galaxy.",
+        "The most dramatic moment in a star's life is its explosive death as a supernova. In just seconds, a dying star can shine brighter than billions of normal stars combined! This cosmic fireworks display spreads elements like carbon, oxygen, and iron across space - the very elements that eventually form planets and even people. We are all made of star-stuff scattered by ancient supernovas.",
+        "A supernova explosion can briefly outshine an entire galaxy of 100 billion stars.",
         drawSupernova
     },
     {
-        "Comet", 
-        "Cosmic messengers from the frozen outskirts. These icy wanderers carry the pristine building blocks of our solar system, time capsules from the dawn of our cosmic neighborhood.",
-        "Comets\' tails always point away from the Sun due to solar wind.",
-        drawComet
+        "Black Hole", 
+        "In some places, gravity becomes so strong that nothing can escape - not even light itself. These are black holes, where space and time are stretched to their limits. Though invisible directly, we can detect them by how they affect nearby stars and gas. Black holes teach us that the universe is stranger and more wonderful than we ever imagined.",
+        "If Earth were squeezed to the density of a black hole, it would be smaller than a cherry!",
+        drawBlackHole
     },
     {
-        "Binary Star", 
-        "Stellar siblings locked in an eternal dance. These pairs of stars orbit their common center of mass, showing us that even in the cosmos, companionship is a fundamental pattern.",
-        "More than half of all stars in our galaxy are part of binary or multiple star systems.",
-        drawBinaryStar
-    },
-    {
-        "Space Station", 
-        "Humanity\'s first outpost among the stars. A testament to our curiosity and determination to explore beyond our world, a stepping stone to our future among the cosmos.",
-        "The International Space Station orbits Earth at about 28,000 km/h.",
-        drawSpaceStation
+        "Galaxy", 
+        "Our journey ends with a view of entire galaxies - vast islands of stars floating in the cosmic ocean. Our own Milky Way contains hundreds of billions of stars, and the universe holds trillions of galaxies, each with its own collection of stars, planets, and wonders. When we gaze at these distant star cities, we glimpse the true scale and beauty of our universe.",
+        "Scientists estimate there are over 2 trillion galaxies in the observable universe.",
+        drawGalaxy
     }
 };
 
@@ -170,7 +166,12 @@ public:
         narrationScrollY(0),
         lastNarrationScrollTime(0),
         narrationScrollPixelSpeed(50), // ms per pixel
-        currentWarpFactor(0.0f)
+        currentWarpFactor(0.0f),
+        scrollPauseTime(1000), // 1 second pause at start/end
+        lastScrollPauseTime(0),
+        isScrollPaused(true),
+        calibrationScreenFirstDraw(true), // Initialize the new member
+        readyMessageShown(false) // Add this for the ready message state
     {
         // Constructor body (if needed for more complex init)
     }
@@ -189,6 +190,8 @@ public:
         initialized = false;
         potentiometerCalibrated = false;
         currentStoryStep = 0; // Reset to start
+        // Reset calibration screen state
+        calibrationScreenFirstDraw = true; // Add this as a class member
         // Add any other necessary cleanup for exiting story mode
         Serial.println("Exited Story Mode and cleaned up.");
     }
@@ -247,81 +250,89 @@ private:
     void updateNarrationScrolling(const char* text);
     void advanceToNextStop();
     void updateCurrentStepVisuals();
+
+    unsigned long scrollPauseTime;
+    unsigned long lastScrollPauseTime;
+    bool isScrollPaused;
+
+    // New member variable for calibration screen state
+    bool calibrationScreenFirstDraw;
+    bool readyMessageShown; // Add this for the ready message state
 };
 
 // Define static members of the class
 const StoryStop StoryMode::storyStopsList[] = {
     {
         "Our Sun", 
-        "A star, our Sun, the giver of light and warmth. Every living being on Earth owes its existence to this ball of nuclear fusion, our quiet companion in the cosmos.",
-        "The Sun contains 99.86% of all mass in the solar system.",
+        "At the heart of our cosmic neighborhood shines our Sun, a colossal ball of glowing gas. This magnificent star creates light and heat through nuclear fusion, turning hydrogen into helium deep within its core. Every plant that grows, every animal that moves, and every human who has ever lived depends on its steady radiance.",
+        "The Sun is so massive it contains 99.86% of all the matter in our solar system!",
         drawStar
     },
     {
-        "Planet Earth", 
-        "The pale blue dot. Suspended in a sunbeam. A mote of dust in the cosmic dark. Our home, the only world we\'ve known, fragile and precious beyond measure.",
-        "Earth is the only planet not named after a mythological god or goddess.",
-        drawPlanet
-    },
-    {
-        "Nebula", 
-        "The birthplace of stars. These vast clouds of gas and dust are cosmic nurseries where new suns take their first breath, illuminating the darkness with the promise of worlds yet to be.",
-        "The word nebula comes from Latin, meaning \'cloud\' or \'fog\'.",
-        drawNebula
-    },
-    {
-        "Galaxy", 
-        "Islands of stars in the cosmic ocean. Each galaxy contains billions of suns, and each of those stars might cradle worlds of unimaginable wonder waiting to be discovered.",
-        "There are estimated to be over 2 trillion galaxies in the observable universe.",
-        drawGalaxy
-    },
-    {
         "Solar System", 
-        "A family of worlds. Planets, moons, asteroids, and comets - all dancing to the gravitational symphony of their parent star, a cosmic mobile of matter in elegant orbit.",
-        "If the Sun were hollow, it could fit about 1.3 million Earths inside it.",
+        "Around our Sun orbits a family of worlds - planets, moons, asteroids, and comets. Like children around a parent, these bodies follow invisible paths shaped by gravity. Some planets are rocky like Earth, others are giant balls of gas like Jupiter. Each world tells its own unique story in our cosmic neighborhood.",
+        "If the Sun were hollow, more than a million Earths could fit inside it!",
         drawSolarSystem
     },
     {
+        "Planet Earth", 
+        "Here is our home - the pale blue dot suspended in a sunbeam. From space, there are no borders or countries, just oceans, clouds, and land. Earth is special because it has liquid water, breathable air, and thousands of different living things. It's the only place we know of where life exists in the entire universe.",
+        "Earth is the only planet not named after a god or goddess from ancient myths.",
+        drawPlanet
+    },
+    {
+        "Space Station", 
+        "Circling our Earth is humanity's first home away from home. The Space Station is like a house floating in space where astronauts live and work. From this outpost, people conduct experiments, observe our planet, and learn how to live in zero gravity. It represents our first step into becoming a spacefaring species.",
+        "The International Space Station zooms around Earth at about 28,000 kilometers per hour!",
+        drawSpaceStation
+    },
+    {
         "Asteroid Field", 
-        "The debris of creation. These rocky remnants tell the story of planets that might have been, celestial building blocks left over from the solar system\'s turbulent youth.",
-        "Most asteroids orbit in a belt between Mars and Jupiter.",
+        "Between Mars and Jupiter floats a ring of rocky leftovers from when our solar system formed. These asteroids are like cosmic building blocks that never became a planet. Some are tiny pebbles while others are as big as mountains. By studying them, scientists learn about the materials that built our solar system billions of years ago.",
+        "If you gathered all asteroids together, they would make a world smaller than our Moon.",
         drawAsteroidField
     },
     {
-        "Black Hole", 
-        "Where space and time end. These cosmic devourers bend reality itself, teaching us that gravity is not just a force, but a curvature in the fabric of spacetime.",
-        "If Earth were compressed to the density of a black hole, it would be the size of a cherry.",
-        drawBlackHole
+        "Comet", 
+        "From the cold edges of our solar system come visitors wrapped in glowing cloaks. Comets are cosmic snowballs made of ice, dust, and frozen gases. When they approach the Sun, the heat transforms some ice directly into gas, creating a beautiful tail that can stretch for millions of kilometers. These ancient travelers have remained mostly unchanged since the birth of our solar system.",
+        "A comet's tail always points away from the Sun, pushed by the solar wind.",
+        drawComet
+    },
+    {
+        "Nebula", 
+        "Imagine cosmic clouds stretching trillions of kilometers across space. These nebulae are where stars are born. Inside these colorful mixtures of gas and dust, gravity pulls material together until it becomes hot enough to spark the fire of a new star. When you look at a nebula, you're seeing both stellar nurseries and the beautiful remains of stars that died long ago.",
+        "The word 'nebula' comes from Latin, meaning 'cloud' or 'fog'.",
+        drawNebula
+    },
+    {
+        "Binary Star", 
+        "Not all stars live alone like our Sun. Many have companions, dancing with another star in an endless cosmic waltz. These binary stars orbit around each other, pulled by their mutual gravity. Sometimes they're twins of equal size, other times one is giant and the other small. Their dance can last billions of years, showing that even in the vastness of space, pairs are common.",
+        "More than half of all stars in our galaxy have at least one stellar companion!",
+        drawBinaryStar
     },
     {
         "Pulsar", 
-        "Cosmic lighthouses. The rapidly spinning corpses of massive stars, sweeping beams of radiation across the cosmos with clock-like precision, nature\'s most perfect timepieces.",
-        "Some pulsars rotate more than 700 times per second.",
+        "When certain stars die, they leave behind rapidly spinning cores called pulsars. These stellar lighthouses sweep beams of energy across space like cosmic beacons. A pulsar can spin hundreds of times each second with such perfect timing that they're more accurate than our best atomic clocks. They're nature's most precise timepieces, ticking away in the darkness of space.",
+        "Some pulsars rotate more than 700 times every second - faster than a kitchen blender!",
         drawPulsar
     },
     {
         "Supernova", 
-        "The spectacular death of stars. In their final moments, these stellar giants seed the cosmos with the heavy elements needed for life, a cosmic phoenix creating renewal from destruction.",
-        "A supernova can briefly outshine an entire galaxy.",
+        "The most dramatic moment in a star's life is its explosive death as a supernova. In just seconds, a dying star can shine brighter than billions of normal stars combined! This cosmic fireworks display spreads elements like carbon, oxygen, and iron across space - the very elements that eventually form planets and even people. We are all made of star-stuff scattered by ancient supernovas.",
+        "A supernova explosion can briefly outshine an entire galaxy of 100 billion stars.",
         drawSupernova
     },
     {
-        "Comet", 
-        "Cosmic messengers from the frozen outskirts. These icy wanderers carry the pristine building blocks of our solar system, time capsules from the dawn of our cosmic neighborhood.",
-        "Comets\' tails always point away from the Sun due to solar wind.",
-        drawComet
+        "Black Hole", 
+        "In some places, gravity becomes so strong that nothing can escape - not even light itself. These are black holes, where space and time are stretched to their limits. Though invisible directly, we can detect them by how they affect nearby stars and gas. Black holes teach us that the universe is stranger and more wonderful than we ever imagined.",
+        "If Earth were squeezed to the density of a black hole, it would be smaller than a cherry!",
+        drawBlackHole
     },
     {
-        "Binary Star", 
-        "Stellar siblings locked in an eternal dance. These pairs of stars orbit their common center of mass, showing us that even in the cosmos, companionship is a fundamental pattern.",
-        "More than half of all stars in our galaxy are part of binary or multiple star systems.",
-        drawBinaryStar
-    },
-    {
-        "Space Station", 
-        "Humanity\'s first outpost among the stars. A testament to our curiosity and determination to explore beyond our world, a stepping stone to our future among the cosmos.",
-        "The International Space Station orbits Earth at about 28,000 km/h.",
-        drawSpaceStation
+        "Galaxy", 
+        "Our journey ends with a view of entire galaxies - vast islands of stars floating in the cosmic ocean. Our own Milky Way contains hundreds of billions of stars, and the universe holds trillions of galaxies, each with its own collection of stars, planets, and wonders. When we gaze at these distant star cities, we glimpse the true scale and beauty of our universe.",
+        "Scientists estimate there are over 2 trillion galaxies in the observable universe.",
+        drawGalaxy
     }
 };
 const int StoryMode::TOTAL_STORY_STOPS = sizeof(StoryMode::storyStopsList) / sizeof(StoryMode::storyStopsList[0]);
@@ -342,77 +353,157 @@ void StoryMode::setupLayout() { // Was setupStoryModeLayout
     charsPerNarrationLine = (SCREEN_WIDTH - 2 * narrationBoxPadding) / 6; // Assuming char width of 6
 }
 
-void StoryMode::drawCalibrationPrompt(int potValue) { // Was drawSetDialToZeroPrompt
+void StoryMode::drawCalibrationPrompt(int potValue) {
     static int lastPotValue = -1;
-    static bool firstDraw = true;
-
+    
     // Responsive layout
     int dialRadius = std::min(SCREEN_WIDTH, SCREEN_HEIGHT) / 8;
     int dialCenterX = SCREEN_WIDTH / 2;
     int dialCenterY = SCREEN_HEIGHT * 3 / 4;
 
-    if (firstDraw) {
+    if (calibrationScreenFirstDraw) {
+        // Clear screen and draw background stars
         tft.fillScreen(BG_COLOR);
+        updateStars(); // Draw initial starfield
+
+        // Draw title with shadow effect
         tft.setTextDatum(MC_DATUM);
         tft.setTextSize(2);
+        // Draw shadow layers
         for(int i = 3; i > 0; i--) {
             tft.setTextColor(tft.color565(0, 60 - i*15, 120 - i*20));
-            tft.drawString("COSMIC", SCREEN_WIDTH/2 + i, SCREEN_HEIGHT/8 + i);
-            tft.drawString("JOURNEY", SCREEN_WIDTH/2 + i, SCREEN_HEIGHT/8 + 25 + i);
+            tft.drawString("PREPARE FOR", SCREEN_WIDTH/2 + i, SCREEN_HEIGHT/8 + i);
+            tft.drawString("WARP TRAVEL", SCREEN_WIDTH/2 + i, SCREEN_HEIGHT/8 + 25 + i);
         }
+        // Draw main text
         tft.setTextColor(tft.color565(0, 200, 255));
-        tft.drawString("COSMIC", SCREEN_WIDTH/2, SCREEN_HEIGHT/8);
-        tft.drawString("JOURNEY", SCREEN_WIDTH/2, SCREEN_HEIGHT/8 + 25);
+        tft.drawString("PREPARE FOR", SCREEN_WIDTH/2, SCREEN_HEIGHT/8);
+        tft.drawString("WARP TRAVEL", SCREEN_WIDTH/2, SCREEN_HEIGHT/8 + 25);
+
+        // Draw decorative lines
         for(int i = 0; i < 2; i++) {
             tft.drawFastHLine(SCREEN_WIDTH/2 - 80 + i*2, SCREEN_HEIGHT/8 + 45 + i, 160 - i*4, 
                              tft.color565(0, 200 - i*50, 255 - i*50));
         }
+
+        // Draw instruction box with glow effect
         int boxW = SCREEN_WIDTH * 0.75;
         int boxH = SCREEN_HEIGHT * 0.15;
         int boxX = (SCREEN_WIDTH - boxW) / 2;
         int boxY = SCREEN_HEIGHT * 0.3;
-        tft.fillRect(boxX + 4, boxY + 4, boxW - 8, boxH - 8, tft.color565(0, 40, 80));
-        tft.drawRect(boxX + 2, boxY + 2, boxW - 4, boxH - 4, tft.color565(0, 160, 255));
-        tft.drawRect(boxX, boxY, boxW, boxH, tft.color565(255, 255, 0));
+
+        // Box glow effect
+        for(int i = 3; i >= 0; i--) {
+            tft.drawRect(boxX - i, boxY - i, boxW + i*2, boxH + i*2, 
+                        tft.color565(0, 40 + i*40, 80 + i*40));
+        }
+        
+        // Main box
+        tft.fillRect(boxX, boxY, boxW, boxH, tft.color565(0, 20, 40));
+        tft.drawRect(boxX, boxY, boxW, boxH, tft.color565(0, 160, 255));
+        
+        // Box text with glow
         tft.setTextSize(2);
-        tft.setTextColor(tft.color565(100, 200, 255));
-        tft.drawString("SET DIAL TO", SCREEN_WIDTH/2 + 1, boxY + boxH/3 + 1);
-        tft.drawString("ZERO", SCREEN_WIDTH/2 + 1, boxY + boxH*2/3 + 1);
-        tft.setTextColor(tft.color565(255, 255, 0));
+        for(int i = 2; i > 0; i--) {
+            tft.setTextColor(tft.color565(0, 100 + i*50, 200 + i*20));
+            tft.drawString("SET DIAL TO", SCREEN_WIDTH/2 + i, boxY + boxH/3 + i);
+            tft.drawString("ZERO", SCREEN_WIDTH/2 + i, boxY + boxH*2/3 + i);
+        }
+        tft.setTextColor(tft.color565(255, 255, 255));
         tft.drawString("SET DIAL TO", SCREEN_WIDTH/2, boxY + boxH/3);
         tft.drawString("ZERO", SCREEN_WIDTH/2, boxY + boxH*2/3);
-        firstDraw = false;
+
+        calibrationScreenFirstDraw = false;
+        lastPotValue = -1; // Force dial redraw
     }
 
+    // Draw the dial with dynamic updates
     if (potValue != lastPotValue) {
+        // Clear previous dial
         tft.fillCircle(dialCenterX, dialCenterY, dialRadius + 6, BG_COLOR);
-        tft.fillCircle(dialCenterX, dialCenterY, dialRadius, tft.color565(0, 40, 80));
-        tft.drawCircle(dialCenterX, dialCenterY, dialRadius, tft.color565(0, 160, 255));
-        tft.drawCircle(dialCenterX, dialCenterY, dialRadius - 1, tft.color565(0, 100, 200));
+        
+        // Draw dial base with glow
+        for(int i = 2; i >= 0; i--) {
+            tft.drawCircle(dialCenterX, dialCenterY, dialRadius + i, 
+                          tft.color565(0, 80 + i*40, 160 + i*40));
+        }
+        tft.fillCircle(dialCenterX, dialCenterY, dialRadius, tft.color565(0, 20, 40));
+        
+        // Draw tick marks with glow
         for (int angleDeg = 0; angleDeg < 360; angleDeg += 30) {
             float rad = angleDeg * PI / 180.0f;
             int innerX = dialCenterX + cos(rad) * (dialRadius - 5);
             int innerY = dialCenterY + sin(rad) * (dialRadius - 5);
             int outerX = dialCenterX + cos(rad) * dialRadius;
             int outerY = dialCenterY + sin(rad) * dialRadius;
-            tft.drawLine(innerX, innerY, outerX, outerY, tft.color565(0, 200, 255));
+            // Glow effect for tick marks
+            for(int i = 1; i >= 0; i--) {
+                tft.drawLine(innerX + i, innerY + i, outerX + i, outerY + i, 
+                            tft.color565(0, 160 + i*40, 255));
+            }
         }
+
+        // Draw zero marker with glow
         int zeroX = dialCenterX - dialRadius - 10;
         int zeroY = dialCenterY;
-        tft.fillCircle(zeroX, zeroY, 6, tft.color565(0, 50, 0));
-        tft.fillCircle(zeroX, zeroY, 4, tft.color565(0, 100, 0));
+        // Glow effect for zero marker
+        for(int i = 2; i >= 0; i--) {
+            tft.fillCircle(zeroX, zeroY, 6 - i, tft.color565(0, 80 + i*60, 0));
+        }
         tft.setTextColor(tft.color565(0, 255, 0));
         tft.setTextSize(1);
         tft.drawString("0", zeroX, zeroY);
+
+        // Draw pointer with glow effect
         float angle = PI + ((potValue / 4095.0f) * (300.0f * PI / 180.0f));
         int pointerX = dialCenterX + cos(angle) * (dialRadius - 3);
         int pointerY = dialCenterY + sin(angle) * (dialRadius - 3);
-        tft.drawLine(dialCenterX, dialCenterY, pointerX, pointerY, tft.color565(180, 0, 0));
-        tft.drawLine(dialCenterX + 1, dialCenterY, pointerX + 1, pointerY, tft.color565(255, 0, 0));
-        tft.drawLine(dialCenterX - 1, dialCenterY, pointerX - 1, pointerY, tft.color565(255, 0, 0));
-        tft.fillCircle(dialCenterX, dialCenterY, 3, tft.color565(0, 160, 255));
-        tft.fillCircle(dialCenterX, dialCenterY, 2, tft.color565(255, 255, 255));
+        
+        // Pointer glow
+        for(int i = 2; i >= 0; i--) {
+            tft.drawLine(dialCenterX + i, dialCenterY, pointerX + i, pointerY, 
+                        tft.color565(200 + i*20, i*40, i*40));
+        }
+        
+        // Center dot with glow
+        for(int i = 3; i >= 0; i--) {
+            tft.fillCircle(dialCenterX, dialCenterY, 3 - i, 
+                          tft.color565(0, 160 + i*30, 255));
+        }
+
         lastPotValue = potValue;
+    }
+
+    // Draw "Ready for Warp" message when dial is at zero
+    if (potValue < 50) {
+        if (!readyMessageShown) {
+            // Draw success message box with glow effect
+            int msgBoxW = 160;
+            int msgBoxH = 30;
+            int msgBoxX = (SCREEN_WIDTH - msgBoxW) / 2;
+            int msgBoxY = SCREEN_HEIGHT * 0.5 - msgBoxH/2;
+            
+            // Box glow
+            for(int i = 3; i >= 0; i--) {
+                tft.drawRect(msgBoxX - i, msgBoxY - i, msgBoxW + i*2, msgBoxH + i*2, 
+                            tft.color565(0, 80 + i*40, 0));
+            }
+            tft.fillRect(msgBoxX, msgBoxY, msgBoxW, msgBoxH, tft.color565(0, 60, 0));
+            
+            // Message with glow effect
+            tft.setTextColor(tft.color565(200, 255, 200));
+            tft.setTextSize(1);
+            tft.setTextDatum(MC_DATUM);
+            for(int i = 2; i > 0; i--) {
+                tft.drawString("READY FOR WARP!", SCREEN_WIDTH/2 + i, SCREEN_HEIGHT * 0.5 + i);
+            }
+            tft.setTextColor(tft.color565(255, 255, 255));
+            tft.drawString("READY FOR WARP!", SCREEN_WIDTH/2, SCREEN_HEIGHT * 0.5);
+            
+            readyMessageShown = true;
+        }
+    } else {
+        readyMessageShown = false; // Reset when dial moves away from zero
     }
 }
 
@@ -557,8 +648,10 @@ void StoryMode::updateNarrationScrolling(const char* text) { // Was updateScroll
 void StoryMode::advanceToNextStop() { // Was advanceToNextStoryStep
     tft.fillScreen(BG_COLOR);
     textScrollOffset = 0; // For old text box system
-    narrationScrollY = 0; // Reset vertical scroll for new narration sprite content
+    narrationScrollY = -narrationBoxHeight; // Start text from just below the box
     lastNarrationScrollTime = millis(); // Reset scroll timer for narration sprite
+    isScrollPaused = true; // Start with a pause
+    lastScrollPauseTime = millis(); // Reset pause timer
 
     currentStoryStep = (currentStoryStep + 1) % TOTAL_STORY_STOPS;
 
@@ -628,43 +721,27 @@ void StoryMode::updateCurrentStepVisuals() {
 
         // Calculate text dimensions and positioning
         int textPaddingInsideBox = 8;
+        int textPaddingTop = 8;
         int textDisplayWidth = narrBoxW - 16 - (2 * textPaddingInsideBox); // Reduced width for better margins
-        String narrationText = currentStop.narration;
-        
-        // Update scroll position
-        unsigned long currentTime = millis();
-        if (currentTime - lastNarrationScrollTime > narrationScrollPixelSpeed) {
-            lastNarrationScrollTime = currentTime;
-            narrationScrollY++; // Scroll upward
-            // Reset scroll when text is off screen
-            if (narrationScrollY > narrationBoxHeight * 2) {
-                narrationScrollY = -narrationBoxHeight;
-            }
-        }
-
-        // Split text into lines for centered display
+        int lineHeight = 14; // Line height for text
         int maxCharsPerLine = textDisplayWidth / 6;
-        int startChar = 0;
-        int lineHeight = 14; // Increased line spacing to prevent overlap
-        
-        // Calculate starting Y position for text to scroll from bottom
-        // Add extra padding at the bottom to prevent first line overlay
-        int textStartY = narrationBoxYPos + narrationBoxHeight + lineHeight - narrationScrollY;
+        String narrationText = currentStop.narration;
         
         // Vector to store all lines before drawing
         std::vector<String> lines;
         
         // First pass: split text into lines
-        while(startChar < narrationText.length()) {
+        int startChar = 0;
+        while(startChar < (int)narrationText.length()) {
             int endChar = startChar + maxCharsPerLine;
-            if(endChar > narrationText.length()) endChar = narrationText.length();
+            if(endChar > (int)narrationText.length()) endChar = narrationText.length();
             
             String line = narrationText.substring(startChar, endChar);
             
             // Word wrapping
-            if(endChar < narrationText.length()) {
+            if(endChar < (int)narrationText.length()) {
                 int lastSpace = line.lastIndexOf(' ');
-                if(lastSpace > 0 && line.length() == maxCharsPerLine) {
+                if(lastSpace > 0 && (int)line.length() == maxCharsPerLine) {
                     line = line.substring(0, lastSpace);
                     endChar = startChar + line.length() + 1;
                 }
@@ -672,12 +749,39 @@ void StoryMode::updateCurrentStepVisuals() {
             
             lines.push_back(line);
             startChar = endChar;
-            while(startChar < narrationText.length() && narrationText.charAt(startChar) == ' ') startChar++;
+            while(startChar < (int)narrationText.length() && narrationText.charAt(startChar) == ' ') startChar++;
         }
         
+        // Update scroll position with pauses
+        unsigned long currentTime = millis();
+        
+        // Handle scroll pauses
+        if (isScrollPaused) {
+            if (currentTime - lastScrollPauseTime > scrollPauseTime) {
+                isScrollPaused = false;
+                lastScrollPauseTime = currentTime;
+            }
+        } else if (currentTime - lastNarrationScrollTime > narrationScrollPixelSpeed) {
+            lastNarrationScrollTime = currentTime;
+            narrationScrollY++; // Scroll upward
+            
+            // Calculate total text height
+            int totalTextHeight = lines.size() * lineHeight;
+            
+            // Check if we need to pause at the end
+            if (narrationScrollY > totalTextHeight + narrationBoxHeight) {
+                narrationScrollY = -narrationBoxHeight;
+                isScrollPaused = true;
+                lastScrollPauseTime = currentTime;
+            }
+        }
+
+        // Calculate starting Y position for text to scroll from bottom
+        int textStartY = narrationBoxYPos + narrationBoxHeight - narrationScrollY;
+        
         // Second pass: draw all lines with strict bounds checking
-        int visibleTop = narrationBoxYPos + 8;
-        int visibleBottom = narrationBoxYPos + narrationBoxHeight - 8;
+        int visibleTop = narrationBoxYPos + textPaddingTop;
+        int visibleBottom = narrationBoxYPos + narrationBoxHeight - textPaddingTop;
         
         // Save the current text color for later restoration
         uint16_t savedColor = tft.textcolor;

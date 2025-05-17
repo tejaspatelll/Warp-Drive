@@ -86,8 +86,8 @@ bool powerOffRequested = false;
 unsigned long buttonPressStartTime = 0;
 
 // Change the TFT_LED pin definition
-#define TFT_LED 19  // Changed from 16 to 19
-#define VIBRATION_PIN 5  // Vibration motor pin
+#define TFT_LED 19  
+#define VIBRATION_PIN -1  // Vibration motor pin
 
 // Haptic feedback levels
 enum class HapticLevel {
