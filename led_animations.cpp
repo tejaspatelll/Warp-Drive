@@ -5,12 +5,7 @@
 CRGB leds[NUM_LEDS];
 
 // ----- Global variables from main sketch -----
-// We need warpFactor for the warp LED effect.
-// Make sure this is defined in your main .ino file: float warpFactor = 0.0f;
 extern float warpFactor; 
-// We might need objectScale for discovery effects, if not already available
-// extern float objectScale; // Already declared in .ino and used in _updateDiscoveryEffect
-// Haptic override for special events like star consumption
 extern bool hapticOverrideActive;
 extern unsigned long hapticOverrideEndTime;
 extern bool quizHelplineActive; // Helpline state from main sketch
@@ -350,10 +345,6 @@ void _updateDiscoveryEffect() {
     phase += deltaTime * 1.5f; // General phase increment
     if (phase > TWO_PI) phase -= TWO_PI;
 
-    // Use extern float objectScale; (defined in .ino)
-    // extern float objectScale; // Ensure it's available
-    // float s = constrain(objectScale, 0.5f, 3.0f); // Already in original code
-
     float sinVal = (sin(phase) + 1.0f) / 2.0f; // 0 to 1 for pulsing
 
     switch (currentObject) {
@@ -374,10 +365,20 @@ void _updateDiscoveryEffect() {
             break;
         }
         case CelestialObjectType::NEBULA: {
-            uint8_t hue1 = 150 + sinVal * 40; // Cycle between blue and purple
+            // Dynamic color and brightness based on time
+            float timeFactor = millis() / 200.0; // Time-based factor for animation
+            float pulse = (sin(timeFactor) + 1.0) / 2.0; // Normalize to 0-1
+            
+            // Color cycling for nebula-like effect
+            uint8_t hue1 = 150 + (sin(timeFactor * 0.5) * 40); // Cycle between blue and purple
             uint8_t hue2 = (hue1 + 20) % 255;
-            leds[0] = CHSV(hue1, 255, 50 + sinVal * 80);
-            leds[1] = CHSV(hue2, 240, 50 + (1.0-sinVal) * 70);
+            
+            // Adjust brightness based on pulse
+            uint8_t brightness1 = 50 + (pulse * 80); // Pulsing effect
+            uint8_t brightness2 = 50 + ((1.0 - pulse) * 80);
+            
+            leds[0] = CHSV(hue1, 255, brightness1);
+            leds[1] = CHSV(hue2, 240, brightness2);
             break;
         }
         case CelestialObjectType::GALAXY: {
@@ -486,10 +487,16 @@ void _updateDiscoveryEffect() {
         }
         case CelestialObjectType::NONE:
         default: { // Dim blue for empty space
-            uint8_t b = 10 + sinVal * 20; // Very subtle pulse
-            leds[0] = leds[1] = CHSV(160, 255, b); // Dark, deep blue
+            float pulse = (sin(millis() / 1000.0) + 1.0) / 2.0; // Normalize to 0-1 for pulsing
+            uint8_t minVisibleBrightness = 60; // Ensure LEDs are visibly on
+            uint8_t pulseRange = 90; // The amplitude of the pulse
+            uint8_t pulsedBrightness = minVisibleBrightness + (pulse * pulseRange); // Subtle pulsing effect from min to min+range
+            
+            leds[0] = leds[1] = CHSV(150, 255, pulsedBrightness); // Deep blue with pulsing
+            
+            // Keep the rare twinkle effect
             if (random8() < 5) { // Very rare twinkle
-                 leds[random8()%NUM_LEDS].maximizeBrightness(30);
+                 leds[random8() % NUM_LEDS].maximizeBrightness(30);
             }
             break;
         }
@@ -509,67 +516,9 @@ void _updateTransitionEffect() {
         else if (currentLedMode == LedMode::DISCOVERY) _updateDiscoveryEffect();
         else { leds[0] = leds[1] = CRGB::Black; } // Default for OFF
         
-        // Now, restore the intended currentLedMode that was set by setLedModeX functions before _startTransition
-        // This logic is tricky. The `previousLedMode` in _startTransition was the state *before* calling setLedModeX.
-        // The `currentLedMode` was then set to the *new* mode by setLedModeX.
-        // Then `_startTransition` changed `currentLedMode` to `LedMode::TRANSITION` and stored the *new* mode (the one we are going to) in `previousLedMode` for this context.
-        // This is a bit confusing. Let's simplify.
-        // The setLedModeX functions should set the *target* mode into a new variable, e.g. `targetLedMode`.
-        // For now, I'll assume the `setLedModeX` has ALREADY set the `currentLedMode` to the desired final mode.
-        // So, after transition, currentLedMode is ALREADY the target.
-        // The `previousLedMode` here would be the mode we were in *during* the transition effect.
-        // This needs fixing.
-
-        // Corrected logic: setLedModeX sets currentLedMode. _startTransition copies currentLedMode to targetLedMode, then sets currentLedMode = TRANSITION.
-        // Let's adjust: setLedModeX sets a `targetLedMode`. _startTransition sets `currentLedMode = TRANSITION`.
-        // The effect functions will produce the `leds` state for the *target* mode.
-        // The `previousLedMode` was the one we were fading *from*.
-        // The `currentLedMode` is the one we are fading *to*. This is what is set by the `setLedModeX` functions.
-        // So when transition is done, `currentLedMode` is already correct.
-
-        // The `setLedModeX` functions now call _startTransition which sets currentLedMode = LedMode::TRANSITION.
-        // The original currentLedMode (the target) needs to be restored or used.
-        // Let's make `previousLedMode` the mode we are going TO.
-        // In setLedModeMenu:
-        //   _startTransition(); // currentLedMode becomes TRANSITION, oldLeds is current state
-        //   previousLedMode = LedMode::MENU; // Store TARGET mode here
-        //   ... update menuSelection etc.
-
-        // In _updateTransitionEffect, when done:
-        //   currentLedMode = previousLedMode; // Restore target mode
-        //   // And call the effect for this frame
-        //   if (currentLedMode == LedMode::MENU) _updateMenuEffect(); ... etc.
-        // This way, the first frame after transition renders the new mode correctly.
-
-        // Let's refine the state management for transitions:
-        // 1. `setLedModeX` will:
-        //    - If mode is changing:
-        //        - Store `leds` into `oldLeds`.
-        //        - Set `transitionStartTime = millis()`.
-        //        - Set `targetLedMode = new_mode`. (Need a new static var `targetLedMode`)
-        //        - Set `currentLedMode = LedMode::TRANSITION`.
-        //        - Update specific parameters for the new_mode.
-        // 2. `_updateTransitionEffect` will:
-        //    - Calculate blend factor.
-        //    - Generate `targetLeds` by calling the effect function for `targetLedMode`.
-        //    - Blend `oldLeds` and `targetLeds` into `leds`.
-        //    - If `elapsedTime >= TRANSITION_DURATION`:
-        //        - Set `currentLedMode = targetLedMode`.
-        //        - `memcpy(leds, targetLeds, sizeof(leds));` // Ensure final state is pure target
-
-        // For now, the simpler approach is: setLedModeX sets `currentLedMode` to the target.
-        // `_startTransition` saves `leds` to `oldLeds`, sets `previousLedMode = currentLedMode` (the one we're going to),
-        // and then sets `currentLedMode = LedMode::TRANSITION`.
-        // When transition ends, `currentLedMode` becomes `previousLedMode` (which was the target).
         currentLedMode = previousLedMode; // previousLedMode was set to the target mode.
-        // The effect for the target mode will be called on the next updateLedEffects() call.
-        // To avoid a 1-frame glitch or missed update, we should probably calculate the final state right here.
         LedMode finalMode = currentLedMode; // This is the mode we just transitioned TO.
-        // Calculate the final state for the new mode
-        CRGB finalLeds[NUM_LEDS];
-        // Temporarily set leds pointer for the effect functions
-        CRGB* actualLedsPtr = leds; // Save current leds array
-        // CRGB tempLeds[NUM_LEDS]; leds = tempLeds; // This doesn't work as leds is global array not pointer
+
 
         // Instead of manipulating global leds, just call the function and it will write to global 'leds'
         if (finalMode == LedMode::MENU) _updateMenuEffect();
@@ -578,8 +527,6 @@ void _updateTransitionEffect() {
         else if (finalMode == LedMode::WARP) _updateWarpEffect();
         else if (finalMode == LedMode::DISCOVERY) _updateDiscoveryEffect();
         else { FastLED.clear(); } // For OFF
-        // leds = actualLedsPtr; // Restore (not needed if effect functions write to global leds)
-        // FastLED.show(); // Show the pure final state immediately.
 
     } else {
         float progress = (float)elapsedTime / TRANSITION_DURATION;
@@ -587,18 +534,13 @@ void _updateTransitionEffect() {
 
         // Calculate the target state for the fade
         CRGB targetStateLeds[NUM_LEDS];
-        // Hack: to get the target state, temporarily set mode and call update
-        LedMode actualCurrentMode = currentLedMode; // This is TRANSITION
-        currentLedMode = previousLedMode; // Set to target mode to get its state
+        LedMode actualCurrentMode = currentLedMode;
+        currentLedMode = previousLedMode;
 
         // Use a temporary CRGB array for the target effect calculation
         CRGB tempTargetLeds[NUM_LEDS];
-        CRGB* originalLeds = leds; // leds is global, so effect functions write to it.
-                                   // This is problematic. Effect functions need to write to a buffer.
+        CRGB* originalLeds = leds;
 
-        // Let's redesign effect functions to fill a passed buffer or return CRGB array
-        // For now, a simpler blend directly using the global 'leds' which will be overwritten
-        // Get target state by calling its update function. This will modify global 'leds'.
         if (previousLedMode == LedMode::MENU) _updateMenuEffect();
         else if (previousLedMode == LedMode::QUIZ) _updateQuizEffect();
         else if (previousLedMode == LedMode::STORY) _updateStoryEffect();
@@ -646,12 +588,6 @@ void updateLedEffects() {
 // Placeholder for setLedColor - not typically used with modes, but good to have
 void setLedColor(uint8_t ledIndex, uint32_t color) {
     if (ledIndex < NUM_LEDS) {
-        // If you call this, you might want to switch to a manual/OFF mode
-        // or a specific "direct control" mode.
-        // For now, it just sets the color but mode logic will override on next update.
         leds[ledIndex] = CRGB((color >> 16) & 0xFF, (color >> 8) & 0xFF, color & 0xFF);
-        // To make this stick, you'd do:
-        // currentLedMode = LedMode::OFF; // Or some LedMode::MANUAL
-        // FastLED.show();
     }
 } 
