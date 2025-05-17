@@ -1,34 +1,45 @@
 /**
- * ESP32 Warp Drive Visualization
- * ================================
- * 
- * This sketch creates a Star Trek-inspired warp drive visualization on a ST7735 TFT display.
- * 
+ * ESP32-S3 Cosmic Knobulator - Universe Explorer
+ * ==============================================
+ *
+ * This sketch transforms an ESP32-S3 microcontroller into a hands-on space exploration toy,
+ * featuring a Star Trek-inspired warp drive visualization on a 240x320 TFT display.
+ * It leverages PSRAM for advanced graphics and includes interactive modes like Quiz and Story,
+ * enhanced by LED animations and haptic feedback.
+ *
  * Features:
- * - Twinkle star field in normal mode
- * - Dynamic warp speed effect based on potentiometer input
- * - Random celestial objects discovery after exiting warp
- * - Beautiful nebulae, galaxies, solar systems, and asteroid fields
- * 
+ * - Twinkling starfield in normal mode
+ * - Dynamic warp speed effect with haptic feedback
+ * - Random celestial object discovery after exiting warp
+ * - Detailed animations for planets, nebulae, black holes, binary stars, and more
+ * - Interactive Quiz mode for testing space knowledge
+ * - Guided Story mode for narrative cosmic journeys
+ * - Dynamic WS2812B LED animations based on current state
+ * - Menu system for mode selection
+ * - Power management with deep sleep
+ *
  * Hardware Requirements:
- * - ESP8266 based board (NodeMCU, Wemos D1, etc.)
- * - ST7735 TFT Display (128x128 pixels)
- * - Potentiometer for warp control
- * 
- * Pin Connections:
- * - TFT_CS:  GPIO5 (D1)
- * - TFT_RST: GPIO4 (D2)
- * - TFT_DC:  GPIO0 (D3)
- * - TFT MOSI: GPIO13 (D7)
- * - TFT SCLK: GPIO14 (D5)
- * - POT_PIN: A0 (Analog input)
- * 
+ * - ESP32-S3 development board with PSRAM
+ * - 2" 240x320 TFT SPI Display
+ * - 10k potentiometer
+ * - Momentary pushbutton
+ * - WS2812B addressable LED strip (e.g., 2 LEDs)
+ * - Vibration motor
+ *
+ * Key Pin Connections (Check User_Setup.h and defines for specifics):
+ * - TFT_CS, TFT_RST, TFT_DC, TFT_MOSI, TFT_SCLK: SPI pins for TFT display
+ * - TFT_LED (GPIO 19): TFT backlight control
+ * - POT_PIN (GPIO 7, ADC1_7): Potentiometer input
+ * - BUTTON_PIN (GPIO 3, INPUT_PULLUP): Pushbutton input
+ * - LED_PIN (GPIO 2): WS2812B LED data line
+ * - VIBRATION_PIN (GPIO 26): Vibration motor control
+ *
  * Controls:
- * - Turn the potentiometer to increase warp speed
- * - Return to low speed to exit warp and potentially discover celestial objects
- * 
- * The code uses batch processing and optimized drawing to maintain smooth animation
- * on the limited hardware resources of the ESP8266.
+ * - Turn the potentiometer: Control warp speed, navigate menus, select quiz answers
+ * - Press the button: Confirm menu/quiz selections, exit modes, power off (long press)
+ *
+ * The project uses TFT_eSPI for graphics, FastLED for LEDs, and a custom SpriteManager
+ * for PSRAM-backed double buffering, along with modular code for different states and objects.
  */
 
 // Configure ESP32 stack size to prevent stack overflows
@@ -76,7 +87,7 @@ unsigned long buttonPressStartTime = 0;
 
 // Change the TFT_LED pin definition
 #define TFT_LED 19  // Changed from 16 to 19
-#define VIBRATION_PIN 26  // Vibration motor pin
+#define VIBRATION_PIN 5  // Vibration motor pin
 
 // Haptic feedback levels
 enum class HapticLevel {
