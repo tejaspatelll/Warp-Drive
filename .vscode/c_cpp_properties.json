@@ -4,6 +4,7 @@
       "name": "esp32.esp32",
       "includePath": [
         "/Users/tejaspatel/Library/Arduino15/packages/esp32/hardware/esp32/3.2.0/tools/sdk/include",
+        "/Users/tejaspatel/Library/Arduino15/packages/esp32/hardware/esp32/3.2.0/cores/esp32",
         "/Users/tejaspatel/Library/Arduino15/packages/esp32/hardware/esp32/3.2.0/libraries/TFT_eSPI/src",
         "/Users/tejaspatel/Library/Arduino15/packages/esp32/hardware/esp32/3.2.0/libraries/FastLED/src"
       ],

@@ -78,12 +78,20 @@ bool quizActive = false;
 
 // Power management defines
 #define BUTTON_PIN 3   // Make sure this matches your actual button pin
+#define SECOND_BUTTON_PIN 1  // Secondary button pin for showing object facts
 #define LONG_PRESS_TIME 3000 // Time in milliseconds for a long press to power off
 #define SHORT_PRESS_TIME 50  // Minimum time for a valid short press
 
 // Power management variables
 bool powerOffRequested = false;
 unsigned long buttonPressStartTime = 0;
+// Secondary button for object facts in discovery mode
+static bool secondButtonPressed = false;
+static unsigned long secondLastButtonTime = 0;
+const unsigned long SECOND_DEBOUNCE_DELAY = 300; // ms debounce for secondary button
+// Persistent fact panel state
+static bool factPopupActive = false;
+static String factText = "";
 
 // Change the TFT_LED pin definition
 #define TFT_LED 19  
@@ -451,6 +459,7 @@ void setup() {
   // Configure pins
   pinMode(TFT_LED, OUTPUT);
   pinMode(BUTTON_PIN, INPUT_PULLUP);
+  pinMode(SECOND_BUTTON_PIN, INPUT_PULLUP);
   
   // Check if this is a wake from deep sleep
   esp_sleep_wakeup_cause_t wakeup_reason = esp_sleep_get_wakeup_cause();
@@ -695,7 +704,47 @@ void loop() {
             setLedModeDiscovery("None"); // Subtle breathing for empty space
         }
         
-
+        // Secondary button press to show object fact
+        {
+          bool secBtn = digitalRead(SECOND_BUTTON_PIN) == LOW;
+          if (secBtn && !secondButtonPressed && millis() - secondLastButtonTime > SECOND_DEBOUNCE_DELAY) {
+            secondButtonPressed = true;
+            secondLastButtonTime = millis();
+            // Toggle fact panel
+            if (!factPopupActive) {
+              if (!showingCelestialObject) {
+                factText = "Empty space is not empty: it contains about one atom per cm³, cosmic rays, and dark matter.";
+              } else {
+                switch (currentObject) {
+                  case CelestialObject::STAR: factText = "Stars form from collapsing gas clouds; our Sun will burn its hydrogen for ~10 billion years."; break;
+                  case CelestialObject::PLANET: factText = "Planets range from rocky terrestrials to gas giants; some exoplanets orbit so close they sizzle."; break;
+                  case CelestialObject::NEBULA: factText = "Nebulae are stellar nurseries: glowing clouds of gas where new stars emerge."; break;
+                  case CelestialObject::GALAXY: factText = "Galaxies can host trillions of stars, vast clouds of gas, and mysterious dark matter."; break;
+                  case CelestialObject::SOLAR_SYSTEM: factText = "Our Solar System has 8 planets and countless comets, all bound by the Sun's gravity."; break;
+                  case CelestialObject::ASTEROID_FIELD: factText = "Asteroid belts are leftovers of planet formation, sculpted by planetary resonances."; break;
+                  case CelestialObject::BLACK_HOLE: factText = "Black holes warp spacetime; stellar ones form when massive stars collapse."; break;
+                  case CelestialObject::PULSAR: factText = "Pulsars are neutron stars spinning hundreds of times per second, beaming radiation like lighthouses."; break;
+                  case CelestialObject::SUPERNOVA: factText = "Supernovae briefly outshine galaxies and forge heavy elements like gold and uranium."; break;
+                  case CelestialObject::COMET: factText = "Comets are icy bodies that develop glowing tails of gas and dust when heated by the Sun."; break;
+                  case CelestialObject::BINARY_STAR: factText = "Binary stars orbit each other; close pairs can exchange material in dramatic outbursts."; break;
+                  case CelestialObject::SPACE_STATION: factText = "Space stations like the ISS let humans live in microgravity to advance science and tech."; break;
+                  default: factText = ""; break;
+                }
+              }
+              factPopupActive = true;
+              drawFactPopup();
+            } else {
+              factPopupActive = false;
+              hideFactPopup();
+            }
+          } else if (!secBtn) {
+            secondButtonPressed = false;
+          }
+        }
+        // Keep fact panel visible if active
+        if (factPopupActive) {
+          drawFactPopup();
+        }
         break;
     }
     
@@ -793,6 +842,11 @@ void processInput() {
   if (shouldWarp && !prevShouldWarp) {
     // We're entering warp mode from another state
     Serial.println("Entering WARP mode");
+    // Close fact panel when warping
+    if (factPopupActive) {
+      factPopupActive = false;
+      hideFactPopup();
+    }
     
     // If a celestial object was being shown in DISCOVERY, erase it and clean up sprites
     if (currentState == State::DISCOVERY && showingCelestialObject) {
@@ -2124,5 +2178,139 @@ void cleanupAllCelestialObjectSprites() {
     delay(50); // Small delay to allow Serial to complete
   }
   #endif
+}
+
+/**
+ * Shows a fact about the currently displayed celestial object.
+ */
+void showFactForCurrentObject() {
+  const char* fact;
+  switch (currentObject) {
+    case CelestialObject::STAR:
+      fact = "Stars are massive, luminous spheres of plasma.";
+      break;
+    case CelestialObject::PLANET:
+      fact = "Planets orbit stars and do not produce light.";
+      break;
+    case CelestialObject::NEBULA:
+      fact = "Nebulae are clouds of dust and gas in space.";
+      break;
+    case CelestialObject::GALAXY:
+      fact = "Galaxies contain millions to trillions of stars.";
+      break;
+    case CelestialObject::SOLAR_SYSTEM:
+      fact = "Our Solar System has 8 planets and a star.";
+      break;
+    case CelestialObject::ASTEROID_FIELD:
+      fact = "Asteroid fields are collections of rocky objects.";
+      break;
+    case CelestialObject::BLACK_HOLE:
+      fact = "Black holes have gravity so strong even light cannot escape.";
+      break;
+    case CelestialObject::PULSAR:
+      fact = "Pulsars are rotating neutron stars emitting beams of radiation.";
+      break;
+    case CelestialObject::SUPERNOVA:
+      fact = "Supernovae are explosive deaths of massive stars.";
+      break;
+    case CelestialObject::COMET:
+      fact = "Comets are icy bodies that develop tails when near the Sun.";
+      break;
+    case CelestialObject::BINARY_STAR:
+      fact = "Binary stars are systems of two stars orbiting each other.";
+      break;
+    case CelestialObject::SPACE_STATION:
+      fact = "Space stations are artificial satellites for humans to live and work in space.";
+      break;
+    default:
+      fact = "";
+      break;
+  }
+  int factHeight = 20;
+  tft.fillRect(0, SCREEN_HEIGHT - factHeight, SCREEN_WIDTH, factHeight, BG_COLOR);
+  tft.setTextColor(COLOR_TEXT_ALT);
+  tft.setTextSize(1);
+  tft.setCursor(2, SCREEN_HEIGHT - factHeight + 2);
+  tft.print(fact);
+}
+
+// Add these functions after showFactForCurrentObject or at end of file:
+void drawFactPopup() {
+  int boxW = SCREEN_WIDTH * 0.85;
+  int padding = 10;
+  int lineHeight = 12;
+  // Wrap text into lines
+  String lines[10];
+  int lineCount = 0;
+  int start = 0;
+  int len = factText.length();
+  int maxTextW = boxW - padding * 2;
+  while (start < len && lineCount < 10) {
+    int end = start;
+    int lastSpace = -1;
+    while (end < len) {
+      String sub = factText.substring(start, end + 1);
+      if (tft.textWidth(sub) > maxTextW) break;
+      if (factText.charAt(end) == ' ') lastSpace = end;
+      end++;
+    }
+    if (end == start) end = start + 1;
+    else if (end < len && lastSpace > start) end = lastSpace;
+    String line = factText.substring(start, end);
+    line.trim();
+    lines[lineCount++] = line;
+    start = end;
+    while (start < len && factText.charAt(start) == ' ') start++;
+  }
+  int boxH = lineCount * lineHeight + padding * 2;
+  int boxX = (SCREEN_WIDTH - boxW) / 2;
+  int boxY = SCREEN_HEIGHT - boxH - 10;
+  // Draw retro box
+  tft.fillRect(boxX + 4, boxY + 4, boxW - 8, boxH - 8, tft.color565(0, 40, 80));
+  tft.drawRect(boxX + 2, boxY + 2, boxW - 4, boxH - 4, tft.color565(0, 160, 255));
+  tft.drawRect(boxX, boxY, boxW, boxH, tft.color565(0, 100, 200));
+  // Scanlines
+  for (int y = boxY + 6; y < boxY + boxH - 6; y += 3) {
+    tft.drawFastHLine(boxX + 6, y, boxW - 12, tft.color565(0, 30, 60));
+  }
+  // Draw each line centered
+  tft.setTextDatum(MC_DATUM);
+  tft.setTextColor(COLOR_TEXT_ALT);
+  tft.setTextSize(1);
+  for (int i = 0; i < lineCount; i++) {
+    int y = boxY + padding + i * lineHeight + (lineHeight / 2);
+    tft.drawString(lines[i], SCREEN_WIDTH / 2, y);
+  }
+}
+
+void hideFactPopup() {
+  int boxW = SCREEN_WIDTH * 0.85;
+  int padding = 10;
+  int lineHeight = 12;
+  // Recompute number of lines for same dimensions
+  String tmp = factText;
+  int start = 0;
+  int len = tmp.length();
+  int lineCount = 0;
+  int maxTextW = boxW - padding * 2;
+  while (start < len && lineCount < 10) {
+    int end = start;
+    int lastSpace = -1;
+    while (end < len) {
+      String sub = tmp.substring(start, end + 1);
+      if (tft.textWidth(sub) > maxTextW) break;
+      if (tmp.charAt(end) == ' ') lastSpace = end;
+      end++;
+    }
+    if (end == start) end = start + 1;
+    else if (end < len && lastSpace > start) end = lastSpace;
+    lineCount++;
+    start = end;
+    while (start < len && tmp.charAt(start) == ' ') start++;
+  }
+  int boxH = lineCount * lineHeight + padding * 2;
+  int boxX = (SCREEN_WIDTH - boxW) / 2;
+  int boxY = SCREEN_HEIGHT - boxH - 10;
+  tft.fillRect(boxX, boxY, boxW, boxH, BG_COLOR);
 }
 
