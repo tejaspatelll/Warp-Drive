@@ -93,6 +93,12 @@ const unsigned long SECOND_DEBOUNCE_DELAY = 300; // ms debounce for secondary bu
 static bool factPopupActive = false;
 static String factText = "";
 
+// Quiz helpline state for eliminating wrong options in Quiz mode
+bool quizHelplineActive = false;
+int quizHelplineIndices[2] = {-1, -1};
+unsigned long quizHelplineLastButtonTime = 0;
+const unsigned long QUIZ_HELPLINE_DEBOUNCE = 300; // ms debounce for quiz helpline
+
 // Change the TFT_LED pin definition
 #define TFT_LED 19  
 #define VIBRATION_PIN -1  // Vibration motor pin
@@ -609,7 +615,15 @@ void loop() {
       case State::STORY:
         // Handle story mode
         {
-            bool storyShouldExit = storyModeManager.update(potValue, digitalRead(BUTTON_PIN) == LOW);
+            bool storyShouldExit;
+            if (!factPopupActive) {
+              // Normal story update (draws narrative and objects)
+              storyShouldExit = storyModeManager.update(potValue, digitalRead(BUTTON_PIN) == LOW);
+            } else {
+              // Fact popup active: only process input and keep stars animating
+              storyShouldExit = storyModeManager.processInput(potValue, digitalRead(BUTTON_PIN) == LOW);
+              updateStars();
+            }
             if (storyShouldExit) {
                 // storyModeManager.exit() was already called internally by the update/processInput methods
                 currentState = State::MENU;
@@ -619,7 +633,40 @@ void loop() {
             } else {
                 // Only update warpFactor if not exiting
                 warpFactor = storyModeManager.getWarpFactor();
+                // Close story fact popup when entering warp
+                if (warpFactor > 0 && factPopupActive) {
+                  factPopupActive = false;
+                  hideFactPopup();
+                }
                 setLedModeStory(); // Set LED for story mode
+
+                // Secondary button press to show story fact popup
+                {
+                  bool secBtn = digitalRead(SECOND_BUTTON_PIN) == LOW;
+                  if (secBtn && !secondButtonPressed && millis() - secondLastButtonTime > SECOND_DEBOUNCE_DELAY) {
+                    secondButtonPressed = true;
+                    secondLastButtonTime = millis();
+                    if (!factPopupActive) {
+                      factText = storyModeManager.getCurrentFact();
+                      factPopupActive = true;
+                      // Draw fact popup after clearing narration box
+                      // Clear narration box region behind popup
+                      tft.fillRect(0, SCREEN_HEIGHT - SCREEN_HEIGHT/4, SCREEN_WIDTH, SCREEN_HEIGHT/4, BG_COLOR);
+                      drawFactPopup();
+                    } else {
+                      factPopupActive = false;
+                      hideFactPopup();
+                    }
+                  } else if (!secBtn) {
+                    secondButtonPressed = false;
+                  }
+                }
+                // Keep story fact popup visible if active
+                if (factPopupActive) {
+                  // Ensure the narration box is hidden behind the popup
+                  tft.fillRect(0, SCREEN_HEIGHT - SCREEN_HEIGHT/4, SCREEN_WIDTH, SCREEN_HEIGHT/4, BG_COLOR);
+                  drawFactPopup();
+                }
             }
         }
         break;
@@ -732,6 +779,9 @@ void loop() {
                 }
               }
               factPopupActive = true;
+              // Draw fact popup after clearing narration box
+              // Clear narration box region behind popup
+              tft.fillRect(0, SCREEN_HEIGHT - SCREEN_HEIGHT/4, SCREEN_WIDTH, SCREEN_HEIGHT/4, BG_COLOR);
               drawFactPopup();
             } else {
               factPopupActive = false;
@@ -743,6 +793,8 @@ void loop() {
         }
         // Keep fact panel visible if active
         if (factPopupActive) {
+          // Ensure the narration box is hidden behind the popup
+          tft.fillRect(0, SCREEN_HEIGHT - SCREEN_HEIGHT/4, SCREEN_WIDTH, SCREEN_HEIGHT/4, BG_COLOR);
           drawFactPopup();
         }
         break;
@@ -2112,6 +2164,32 @@ void updateQuizMode() {
     }
   } else if (!btn) {
     pressStart = 0;
+  }
+
+  // Quiz helpline toggle: secondary button press
+  bool helpBtn = (digitalRead(SECOND_BUTTON_PIN) == LOW);
+  if (helpBtn && millis() - quizHelplineLastButtonTime > QUIZ_HELPLINE_DEBOUNCE) {
+    quizHelplineLastButtonTime = millis();
+    if (!quizHelplineActive) {
+      // Pick two wrong options to eliminate
+      int wrong[3]; int wc=0;
+      for (int i = 0; i < 4; i++) {
+        if (i != quizState.correctIndex) wrong[wc++] = i;
+      }
+      // Shuffle wrong indices
+      for (int i = wc - 1; i > 0; i--) {
+        int j = random(i + 1);
+        int tmp = wrong[i]; wrong[i] = wrong[j]; wrong[j] = tmp;
+      }
+      quizHelplineIndices[0] = wrong[0];
+      quizHelplineIndices[1] = wrong[1];
+      quizHelplineActive = true;
+    } else {
+      // Disable helpline
+      quizHelplineActive = false;
+    }
+    // Redraw quiz UI to show/eliminate options
+    updateQuiz();
   }
 }
 

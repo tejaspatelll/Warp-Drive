@@ -13,6 +13,7 @@ extern float warpFactor;
 // Haptic override for special events like star consumption
 extern bool hapticOverrideActive;
 extern unsigned long hapticOverrideEndTime;
+extern bool quizHelplineActive; // Helpline state from main sketch
 
 // ----- Internal state variables -----
 unsigned long lastLedUpdateTime = 0;
@@ -214,6 +215,36 @@ void _updateMenuEffect() {
 
 
 void _updateQuizEffect() {
+    // Helpline active override: sophisticated space-console effect
+    if (quizHelplineActive) {
+        float t = millis() / 1000.0f;
+        // Color cycling for depth
+        uint8_t baseHue = 16 + (uint8_t)(sin(t * 0.5f) * 16); // Orange/yellow range
+        // Sine wave pulse for each LED, with phase offset
+        for (int i = 0; i < NUM_LEDS; ++i) {
+            float phase = t * 2.5f + i * 0.7f;
+            float pulse = (sin(phase) + 1.0f) / 2.0f; // 0..1
+            uint8_t val = 80 + pulse * 175;
+            uint8_t hue = baseHue + i * 8;
+            leds[i] = CHSV(hue, 255 - (pulse * 60), val);
+        }
+        // Comet tail sweep for extra flair if more than 2 LEDs
+        if (NUM_LEDS > 2) {
+            float cometPos = fmod(t * 1.2f, NUM_LEDS);
+            for (int i = 0; i < NUM_LEDS; ++i) {
+                float dist = fabs(i - cometPos);
+                if (dist < 1.0f) {
+                    // Bright comet head
+                    leds[i] = CHSV(baseHue + 8, 200, 255);
+                } else if (dist < 2.5f) {
+                    // Fading tail
+                    uint8_t tailVal = 120 - (dist - 1.0f) * 60;
+                    if (tailVal > 10) leds[i] += CHSV(baseHue + 8, 220, tailVal);
+                }
+            }
+        }
+        return;
+    }
     unsigned long currentTime = millis();
     static unsigned long lastStepTime = 0;
 

@@ -8,6 +8,9 @@
 #include "story_mode.h" // Added include for story_mode.h to access STORY_STOPS_DATA and StoryStop struct
 
 extern QuizPopupState quizPopupState;
+// Helpline state for quiz mode (external): toggles highlighting of two wrong options
+extern bool quizHelplineActive;
+extern int quizHelplineIndices[2];
 
 // --- Data Structures ---
 
@@ -67,6 +70,8 @@ void setupQuizOptions() {
     quizState.correctIndex = -1;
     quizState.answeredCorrectly = false;
     quizState.showHint = false;
+    // Reset helpline on new question
+    quizHelplineActive = false;
 
     // STORY_STOPS_DATA and STORY_STOPS_DATA_COUNT are available via #include "story_mode.h"
     // extern const StoryStop STORY_STOPS_DATA[]; // Removed redundant extern
@@ -206,8 +211,15 @@ void updateQuiz() {
     // Draw selection box and text
     // Draw retro-style box
     tft.fillRect(boxX + 4, boxY + 4, boxW - 8, boxH - 8, tft.color565(0, 40, 80));
-    tft.drawRect(boxX + 2, boxY + 2, boxW - 4, boxH - 4, tft.color565(0, 160, 255));
-    tft.drawRect(boxX, boxY, boxW, boxH, tft.color565(255, 255, 0));
+    // Highlight eliminated options in red if helpline is active
+    if (quizHelplineActive && (quizState.selectedIndex == quizHelplineIndices[0] || quizState.selectedIndex == quizHelplineIndices[1])) {
+        uint16_t redCol = tft.color565(255, 0, 0);
+        tft.drawRect(boxX + 2, boxY + 2, boxW - 4, boxH - 4, redCol);
+        tft.drawRect(boxX, boxY, boxW, boxH, redCol);
+    } else {
+        tft.drawRect(boxX + 2, boxY + 2, boxW - 4, boxH - 4, tft.color565(0, 160, 255));
+        tft.drawRect(boxX, boxY, boxW, boxH, tft.color565(255, 255, 0));
+    }
 
     // Retro arrow indicators
     int arrowSize = 10;
@@ -231,14 +243,25 @@ void updateQuiz() {
     // Draw option label
     String optionLabel = STORY_STOPS_DATA[quizState.optionIndices[quizState.selectedIndex]].name;
     // Glow effect
-    tft.setTextDatum(MC_DATUM);
-    tft.setTextSize(2);
-    tft.setTextColor(tft.color565(100, 200, 255));
-    tft.drawString(optionLabel, SCREEN_WIDTH/2 + 1, boxY + boxH/2 + 1);
-    // Main text
-    tft.setTextColor(tft.color565(255, 255, 0));
-    tft.drawString(optionLabel, SCREEN_WIDTH/2, boxY + boxH/2);
-    
+    // Option text, red if helpline marks it as eliminated
+    if (quizHelplineActive && (quizState.selectedIndex == quizHelplineIndices[0] || quizState.selectedIndex == quizHelplineIndices[1])) {
+        uint16_t redCol = tft.color565(255, 0, 0);
+        tft.setTextDatum(MC_DATUM);
+        tft.setTextSize(2);
+        // Red glow (same as main for simplicity)
+        tft.setTextColor(redCol);
+        tft.drawString(optionLabel, SCREEN_WIDTH/2 + 1, boxY + boxH/2 + 1);
+        tft.drawString(optionLabel, SCREEN_WIDTH/2, boxY + boxH/2);
+    } else {
+        // Regular glow and text
+        tft.setTextDatum(MC_DATUM);
+        tft.setTextSize(2);
+        tft.setTextColor(tft.color565(100, 200, 255));
+        tft.drawString(optionLabel, SCREEN_WIDTH/2 + 1, boxY + boxH/2 + 1);
+        tft.setTextColor(tft.color565(255, 255, 0));
+        tft.drawString(optionLabel, SCREEN_WIDTH/2, boxY + boxH/2);
+    }
+
     lastSelectedIndex = quizState.selectedIndex;
     lastOptionLabel = optionLabel;
 

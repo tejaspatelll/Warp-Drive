@@ -198,6 +198,8 @@ public:
 
     float getWarpFactor() const { return currentWarpFactor; }
     int getCurrentStoryStep() const { return currentStoryStep; }
+    // Expose current fact for story stops when secondary button is pressed
+    const char* getCurrentFact() const { return storyStopsList[currentStoryStep].fact; }
 
 private:
     // --- Story Mode Sprites for flicker-free rendering ---
