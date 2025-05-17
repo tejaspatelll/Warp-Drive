@@ -1,8 +1,7 @@
-
 # Cosmic Knobulator - Universe Explorer Toy 🚀🪐
 
 **Blast off into a hands-on, educational space adventure!**  
-Turn an ESP32 microcontroller and a vibrant TFT display into your personal Star Trek-inspired Cosmic Knobulator and explore a dazzling universe—no screens required!
+Turn an ESP32-S3 microcontroller (with PSRAM) and a 2" 240×320 TFT SPI display into your personal Cosmic Knobulator—no phone or tablet required!
 
 ---
 
@@ -20,8 +19,8 @@ Turn an ESP32 microcontroller and a vibrant TFT display into your personal Star 
 ## What is Cosmic Knobulator?
 
 **Cosmic Knobulator** is a playful, STEAM-powered gadget that lets kids (and adults!) travel the cosmos from their hands.  
-Turn the sturdy knob to speed up—stars zip by, and every “warp jump” reveals a new cosmic discovery!  
-Built to inspire curiosity and imagination, it’s a real electronics project that’s safe, robust, and magical.
+Turn the sturdy knob to speed up—stars zip by, and every "warp jump" reveals a new cosmic discovery!  
+Built to inspire curiosity and imagination, it's a real electronics project that's safe, robust, and magical.
 
 ---
 
@@ -34,8 +33,10 @@ Built to inspire curiosity and imagination, it’s a real electronics project th
 - 🧠 **Quiz Mode:** Test your cosmic knowledge with interactive, multiple-choice science questions (potentiometer to select, button to answer!).
 - 📖 **Story Mode:** Experience an interactive, step-by-step cosmic adventure—advance the story with the knob and immerse yourself in the universe.
 - 🗂️ **Easy Menu Navigation:** Pick your mode (Discovery, Quiz, Story) with a twist and a click.
-- 🔋 **Power Management:** Long-press to enter deep sleep; wake up with a button—perfect for classrooms or battery projects.
+- 🔋 **Power Management:** Long-press to enter deep sleep; wake up with a button—perfect for battery-powered setups.
 - ⚡ **Optimized Performance:** Smooth animation, clever redraws, and efficient memory use for buttery visuals on microcontrollers.
+- 💡 **LED Animations:** Dynamic WS2812B LED strip feedback for each mode and event.
+- 🔔 **Haptic Feedback:** Vibration motor pulses enhance immersion during warp speed and interactions.
 
 ---
 
@@ -59,7 +60,7 @@ Built to inspire curiosity and imagination, it’s a real electronics project th
 
 ## Celestial Objects to Discover
 
-Who knows what you’ll find each time you explore? Each object is lovingly animated with its own personality!
+Who knows what you'll find each time you explore? Each object is lovingly animated with its own personality!
 
 - 🌟 Stars (twinkling, flaring, bright and dim)
 - 🪐 Planets (with rings, clouds, and vibrant colors)
@@ -77,21 +78,24 @@ Who knows what you’ll find each time you explore? Each object is lovingly anim
 
 ## How Does It Work?
 
-- **ESP32 Microcontroller:** The brain of the operation—fast, affordable, and beginner-friendly.
-- **ST7735 TFT Display:** 128x128 pixel color screen brings the cosmos to life.
-- **Potentiometer Knob:** Twist to change your speed, select menu items, and answer quiz questions.
-- **Button:** Confirm selections, return to menu, or power down with a long press.
-- **Custom ESP32 Code:** Modular, well-commented, and easy to extend—now with state machine logic for modes!
-- **TFT_eSPI Library:** For lightning-fast graphics on microcontrollers.
-
----
+- **ESP32-S3 Microcontroller:** The brain of the operation. Leverages its dual cores and PSRAM for smooth graphics and complex logic. PSRAM is initialized via `psramInit()` in `setup()` and utilized by `SpriteManager`.
+- **2" 240×320 TFT SPI Display:** Provides a vibrant, high-resolution canvas for the cosmos. Driven by the `TFT_eSPI` library, configured via `User_Setup.h`.
+- **FastLED Library:** Powers the WS2812B LED strip (`led_animations.cpp`) for dynamic, mode-specific mood lighting and status indicators (e.g., Quiz correct/incorrect, warp intensity).
+- **SpriteManager:** Custom static class (`sprite_manager.cpp` / `.h`) that manages a pool of `TFT_eSprite` objects. These are off-screen buffers, preferably in PSRAM, used for rendering complex animations (like celestial objects) flicker-free before pushing them to the display.
+- **Potentiometer Knob:** Connected to `POT_PIN` (GPIO 7, an ADC pin). Its analog value (`potValue`) controls warp speed, menu selection, and quiz answer selection.
+- **Button:** Connected to `BUTTON_PIN` (GPIO 3 with `INPUT_PULLUP`). Used for confirming menu/quiz selections, exiting Discovery mode, and initiating power-down (long press for deep sleep).
+- **Vibration Motor:** Connected to `VIBRATION_PIN` (GPIO 26). `hapticFeedback()` function provides tactile responses correlated with warp speed and other events.
+- **Custom ESP32 Code:** The main logic resides in `warpdrive_esp32_tft.ino`. It includes a state machine (`State` enum) to switch between `MENU`, `DISCOVERY`, `WARP`, `QUIZ`, and `STORY` modes. Each mode has dedicated update and drawing functions. Celestial objects are modularized into their own header files.
+- **TFT_eSPI Library:** Provides the low-level graphics functions for drawing to the screen, including text, shapes, and sprite operations.
 
 ## Build Your Own
 
 ### Hardware Required
 
-- ESP32 development board
-- 128×128 TFT display (ST7735)
+- ESP32-S3 development board with PSRAM
+- 2" 240×320 TFT SPI display
+- WS2812B addressable LED strip (2 LEDs)
+- Vibration motor
 - 10k potentiometer (knob)
 - Momentary pushbutton
 - Breadboard, jumper wires
@@ -109,19 +113,23 @@ Who knows what you’ll find each time you explore? Each object is lovingly anim
 | LED/BLK | GPIO16/19     | Backlight (optional) |
 | VCC     | 3.3V          | Power           |
 | GND     | GND           | Ground          |
-| POT     | GPIO35 (A0)   | Speed/Menu/Quiz Control   |
-| BUTTON  | GPIO15        | Menu/Power/Quiz Confirm   |
+| POT     | GPIO7 (ADC1_7) | Speed/Menu/Quiz Control |
+| BUTTON  | GPIO3          | Menu/Power/Quiz Confirm   |
+| LED Strip | GPIO2          | WS2812B LED data line |
+| Vibration | GPIO26         | Vibration motor control |
 
 ### Software Setup
 
 1. **Install Arduino IDE** (or PlatformIO).
 2. **Add ESP32 Board Support** ([Official instructions](https://docs.espressif.com/projects/arduino-esp32/en/latest/installing.html)).
 3. **Install TFT_eSPI Library** from Arduino Library Manager.
-4. **Configure TFT_eSPI:**
-    - Copy this project’s `User_Setup.h` to the TFT_eSPI library folder,  
+4. **Install FastLED Library** for LED animations.
+5. **Configure TFT_eSPI:**
+    - Copy this project's `User_Setup.h` to the TFT_eSPI library folder,  
       *OR* edit your existing `User_Setup.h` to match the wiring above.
-5. **Open and upload the code.**
-6. **Power up and explore!**
+6. **Enable PSRAM:** Ensure `psramInit()` is called (typically in `setup()` of your main `.ino` file) and that your ESP32-S3 board variant has PSRAM enabled in its configuration. For `TFT_eSPI` sprites to use PSRAM, the `SpriteManager` requests it, and `TFT_eSPI` itself must be compiled with PSRAM support if it has global flags (though `setAttribute(PSRAM_ENABLE, true)` is usually per-sprite).
+7. **Open and upload the code.**
+8. **Power up and explore!**
 
 ---
 
@@ -139,7 +147,7 @@ Who knows what you’ll find each time you explore? Each object is lovingly anim
 - Sound and music support (maybe a warp whoosh?).
 - Bigger, higher-res displays.
 - Multiplayer or Wi-Fi-connected discoveries.
-- “Build your own planet” modes.
+- "Build your own planet" modes.
 - More quiz questions and interactive stories.
 
 ---
@@ -152,7 +160,7 @@ MIT License — Free for classrooms, makerspaces, and curious explorers everywhe
 
 ## Credits & Thanks
 
-Inspired by classic science fiction, the open-source community, and every kid who’s ever looked up and wondered.  
+Inspired by classic science fiction, the open-source community, and every kid who's ever looked up and wondered.  
 Special thanks to ESP32, Arduino, and TFT_eSPI contributors.
 
 ---

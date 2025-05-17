@@ -1,6 +1,6 @@
 # Double Buffering with SpriteManager: Implementation Takeaways
 
-This document summarizes key takeaways from implementing complex animated objects (Space Station and Binary Star) using sprites for double buffering on ESP32 with TFT displays.
+This document summarizes key takeaways from implementing complex animated objects (Space Station and Binary Star) using sprites for double buffering on ESP32-S3 (with PSRAM) and TFT displays.
 
 ## Core Concepts
 
@@ -99,7 +99,7 @@ This document summarizes key takeaways from implementing complex animated object
    - More sensitive to memory constraints
    - Required more aggressive memory management
 
-## ESP32-Specific Considerations
+## ESP32-S3 Specific Considerations
 
 1. **Memory Tracking**
    - Use `ESP.getFreeHeap()` and `ESP.getFreePsram()` for memory monitoring
@@ -116,6 +116,8 @@ This document summarizes key takeaways from implementing complex animated object
    - Keep sprite dimensions as small as possible
    - Pre-calculate values to reduce in-frame computation
    - Consider direct drawing for very small objects
+
+4. **PSRAM Initialization:** Ensure `psramInit()` is called or `BOARD_HAS_PSRAM` is defined to enable PSRAM for sprite buffers.
 
 ## General Best Practices
 
