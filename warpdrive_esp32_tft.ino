@@ -76,6 +76,9 @@ bool quizActive = false;
 // Include LED animations header
 #include "led_animations.h"
 
+// Add this include for buzzer sounds
+#include "buzzer_sounds.h"
+
 // Power management defines
 #define BUTTON_PIN 3   // Make sure this matches your actual button pin
 #define SECOND_BUTTON_PIN 1  // Secondary button pin for showing object facts
@@ -448,6 +451,9 @@ void setup() {
   digitalWrite(VIBRATION_PIN, LOW); // Ensure vibration is off initially
   Serial.begin(9600);  // Move Serial.begin to top for debugging
   
+  // Initialize the buzzer
+  initBuzzer();
+  
   Serial.println("--- PSRAM CHECK START ---");
   #if defined(ESP32) && defined(BOARD_HAS_PSRAM)
   if (psramInit()) {
@@ -596,6 +602,9 @@ void loop() {
     // Update LED effects continuously
     updateLedEffects();
     
+    // Add this near the top of loop, after LED effects update
+    updateAllSoundStates();  // Keep all active sound patterns updated
+    
     // Handle different states
     switch (currentState) {
       case State::MENU:
@@ -603,17 +612,21 @@ void loop() {
         processMenuInput();
         // Update background stars
         updateStars();
+        // Update menu background music
+        updateMenuBackgroundMusic();
         // setLedModeMenu(currentMenuItem, MENU_ITEMS); // Already set when menu is drawn
         break;
         
       case State::QUIZ:
         // Handle quiz mode
-        updateQuizMode();
+        updateQuizMode(); // This function will now also handle quiz music updates
         // LED mode for quiz is set within updateQuizMode
         break;
         
       case State::STORY:
-        // Handle story mode
+        // Stop any ongoing music when entering story mode
+        stopMenuBackgroundMusic();
+        stopQuizQuestionMusic();
         {
             bool storyShouldExit;
             if (!factPopupActive) {
@@ -672,6 +685,9 @@ void loop() {
         break;
         
       case State::WARP:
+        // Stop any ongoing music when entering warp mode
+        stopMenuBackgroundMusic();
+        stopQuizQuestionMusic();
         // Process warp input for WARP state
         processInput();
         // Update warp stars
@@ -681,7 +697,9 @@ void loop() {
              
              
       case State::NORMAL:
-      
+        // Stop any ongoing music
+        stopMenuBackgroundMusic();
+        stopQuizQuestionMusic();
         // Process input for NORMAL and DISCOVERY states
         processInput();
         updateStars();
@@ -690,7 +708,9 @@ void loop() {
 
 
       case State::DISCOVERY:
-      
+        // Stop any ongoing music
+        stopMenuBackgroundMusic();
+        stopQuizQuestionMusic();
         // Process input for NORMAL and DISCOVERY states
         processInput();
         
@@ -1803,6 +1823,7 @@ void powerOff() {
  */
 void drawMenu() {
   tft.fillScreen(BG_COLOR);
+  startMenuBackgroundMusic(); // Start music when menu is drawn
 
   // Draw retro grid background
   const int gridSize = 16;
@@ -1974,6 +1995,9 @@ void processMenuInput() {
     currentMenuItem = mappedItem;
     setLedModeMenu(currentMenuItem, MENU_ITEMS); // Update LED for menu selection change
     
+    // Play menu navigation sound
+    playMenuNavSound();
+    
     // Haptic feedback for menu navigation
     extern bool hapticOverrideActive;
     extern float hapticOverrideValue;
@@ -1994,6 +2018,9 @@ void processMenuInput() {
     if (currentTime - lastButtonTime > 300) { // Debounce
       buttonPressed = true;
       lastButtonTime = currentTime;
+      
+      // Play menu selection sound
+      playMenuSelectSound();
       
       // Quick visual feedback using correct metrics
       tft.fillRect(SCREEN_WIDTH/2 - g_boxWidth/2, g_boxY, 
@@ -2017,6 +2044,9 @@ void processMenuInput() {
       
       // Switch to the selected state
       State selectedState = menuItems[currentMenuItem].state;
+      
+      // Stop menu music before transitioning
+      stopMenuBackgroundMusic();
       
       // Clear the screen
       tft.fillScreen(BG_COLOR);
@@ -2066,6 +2096,7 @@ void updateQuizMode() {
     quizPhase = QUIZ_QUESTION;
     quizInitialized = true;
     setLedModeQuiz(false, true); // Initial state for quiz LEDs: no answer yet, waiting for answer
+    startQuizQuestionMusic();    // Start quiz question background music
   }
 
   // Read button
@@ -2080,97 +2111,94 @@ void updateQuizMode() {
     buttonPressed = false;
   }
 
-  // --- Quiz Phase State Machine ---
-
-  // 1. Handle pop-up if active (block all other input)
+  // 1. Handle pop-up if active
   if (quizPopupState.active) {
+    // Make sure popup music is playing
+    if (!popupMusicPlaying) {
+      stopQuizQuestionMusic();
+      stopQuizHelplineMusic();
+      startQuizPopupMusic();
+    }
+    
     int popupResult = processQuizPopupInput(btnEvent);
     if (popupResult == 1) { // Left button: Try Again or Next
-      uiInitialized = false; // Reset UI flag for next question/redraw
+      stopQuizPopupMusic();
+      uiInitialized = false;
       if (quizState.answeredCorrectly) {
         // Next Question
         setupQuizOptions();
         quizState.answeredCorrectly = false;
         quizState.showHint = false;
-        setLedModeQuiz(false, true); // Reset for next question
+        setLedModeQuiz(false, true);
+        startQuizQuestionMusic();
         updateQuiz();
       } else {
-        // Try Again: just redraw quiz
+        // Try Again
         quizState.answeredCorrectly = false;
         quizState.showHint = false;
-        setLedModeQuiz(false, true); // Reset for try again
+        setLedModeQuiz(false, true);
+        startQuizQuestionMusic();
         updateQuiz();
       }
     } else if (popupResult == 2) { // Right button: Menu
-      uiInitialized = false; // Reset UI flag before leaving quiz
+      stopAllSounds();
+      uiInitialized = false;
       quizInitialized = false;
       quizPhase = QUIZ_QUESTION;
       quizPopupState.active = false;
-      if (quizHandle.id != 0) { // Use handle to check validity
+      if (quizHandle.id != 0) {
           SpriteManager::destroy(quizHandle);
-          quizHandle = {0}; // Invalidate handle
-          Serial.println("[Quiz] Quiz sprite destroyed (popup menu exit).");
+        quizHandle = {0};
       }
       tft.fillScreen(BG_COLOR);
       currentState = State::MENU;
-      setLedModeMenu(currentMenuItem, MENU_ITEMS); // Set LED for menu
+      setLedModeMenu(currentMenuItem, MENU_ITEMS);
       drawMenu();
       return;
     }
-    // If popup still active, redraw it
-    if (quizPopupState.active) updateQuizPopup();
-    return; // Block all other quiz logic while popup is up
+    if (quizPopupState.active) {
+      updateQuizPopup();
+    }
+    return;
   }
 
-  // 2. If no pop-up, handle quiz input and display
+  // 2. Handle quiz input and display
   switch (quizPhase) {
     case QUIZ_QUESTION:
+      // Process input and check for answer selection
+      bool wasAnswered = quizState.answeredCorrectly || quizState.showHint;
       processQuizInput(potValue, btnEvent);
+      
+      // If answer was just selected in this frame
+      if (!wasAnswered && (quizState.answeredCorrectly || quizState.showHint)) {
+        stopQuizQuestionMusic();
+      if (quizState.answeredCorrectly) {
+          playQuizCorrectAnswerSound();
+        } else {
+          playQuizWrongAnswerSound();
+        }
+      }
+      
       updateQuiz();
       updateStars();
-      // If answered, show popup
-      if (quizState.answeredCorrectly) {
-        showQuizPopup(true); // Correct
-        setLedModeQuiz(true, false); // Correct answer, not waiting
-      } else if (quizState.showHint) {
-        showQuizPopup(false); // Wrong
-        setLedModeQuiz(false, false); // Incorrect answer, not waiting
+      
+      // If answered, show popup after playing sound
+      if (quizState.answeredCorrectly || quizState.showHint) {
+        showQuizPopup(quizState.answeredCorrectly);
+        setLedModeQuiz(quizState.answeredCorrectly, false);
       }
-      break;
-    case QUIZ_RESULT_POPUP:
-      // (Unused, all handled in QUIZ_QUESTION for simplicity)
       break;
   }
 
-  // 3. Only allow returning to menu if user long-presses button and pop-up is NOT active
-  static unsigned long pressStart = 0;
-  if (!quizPopupState.active && btn) {
-    if (pressStart == 0) pressStart = now;
-    if (now - pressStart > 1500) { // Long press
-      quizInitialized = false;
-      quizPhase = QUIZ_QUESTION;
-      quizPopupState.active = false;
-      if (quizHandle.id != 0) { // Use handle to check validity
-          SpriteManager::destroy(quizHandle);
-          quizHandle = {0}; // Invalidate handle
-          Serial.println("[Quiz] Quiz sprite destroyed (long press exit).");
-      }
-      tft.fillScreen(BG_COLOR);
-      currentState = State::MENU;
-      setLedModeMenu(currentMenuItem, MENU_ITEMS); // Set LED for menu
-      drawMenu();
-      pressStart = 0;
-      return;
-    }
-  } else if (!btn) {
-    pressStart = 0;
-  }
-
-  // Quiz helpline toggle: secondary button press
+  // Quiz helpline toggle with secondary button
   bool helpBtn = (digitalRead(SECOND_BUTTON_PIN) == LOW);
   if (helpBtn && millis() - quizHelplineLastButtonTime > QUIZ_HELPLINE_DEBOUNCE) {
     quizHelplineLastButtonTime = millis();
     if (!quizHelplineActive) {
+      // Switch to helpline music
+      stopQuizQuestionMusic();
+      startQuizHelplineMusic();
+      
       // Pick two wrong options to eliminate
       int wrong[3]; int wc=0;
       for (int i = 0; i < 4; i++) {
@@ -2185,11 +2213,36 @@ void updateQuizMode() {
       quizHelplineIndices[1] = wrong[1];
       quizHelplineActive = true;
     } else {
-      // Disable helpline
+      // Switch back to question music
+      stopQuizHelplineMusic();
+      startQuizQuestionMusic();
       quizHelplineActive = false;
     }
-    // Redraw quiz UI to show/eliminate options
-    updateQuiz();
+    updateQuiz(); // Redraw UI
+  }
+
+  // Long press to exit
+  static unsigned long pressStart = 0;
+  if (!quizPopupState.active && btn) {
+    if (pressStart == 0) pressStart = now;
+    if (now - pressStart > 1500) {
+      stopAllSounds();
+      quizInitialized = false;
+      quizPhase = QUIZ_QUESTION;
+      quizPopupState.active = false;
+      if (quizHandle.id != 0) {
+        SpriteManager::destroy(quizHandle);
+        quizHandle = {0};
+      }
+      tft.fillScreen(BG_COLOR);
+      currentState = State::MENU;
+      setLedModeMenu(currentMenuItem, MENU_ITEMS);
+      drawMenu();
+      pressStart = 0;
+      return;
+    }
+  } else if (!btn) {
+    pressStart = 0;
   }
 }
 
