@@ -91,6 +91,9 @@ void toggleSound();
 #define NOTE_B6  1976 // Add definition for B6
 #define NOTE_C7  2093 // Add definition for C7
 
+// Warp sound effect
+void updateWarpSound(float warpFactor);
+
 // Initialize the buzzer pin
 void initBuzzer();
 
@@ -98,6 +101,10 @@ void initBuzzer();
 void playMenuNavSound();
 void playMenuSelectSound();
 void stopBuzzerSound();
+
+// New UI Sounds
+void playUISound_Beep();
+void playUISound_Boop();
 
 // Menu Background Music (80s sci-fi theme)
 void startMenuBackgroundMusic();

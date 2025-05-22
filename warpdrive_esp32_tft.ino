@@ -450,7 +450,7 @@ StoryMode storyModeManager; // Default constructor will be called
 
 // Add these near other global variables
 bool ledEnabled = true;  // LED state tracking
-int settingsSelection = 0;  // 0 for sound, 1 for LED
+int settingsSelection = 0;  // 0 for sound, 1 for LED, 2 for Power Off
 
 void setup() {
   pinMode(VIBRATION_PIN, OUTPUT);
@@ -611,6 +611,10 @@ void loop() {
     // Add this near the top of loop, after LED effects update
     updateAllSoundStates();  // Keep all active sound patterns updated
     
+    // Timer for intermittent menu music (declared outside switch to avoid 'jump to case' error)
+    static unsigned long lastMenuMusicStartTime = 0;
+    const unsigned long MUSIC_INTERVAL_MS = 20000; // Play music every 20 seconds if not playing
+
     // Handle different states
     switch (currentState) {
       case State::MENU:
@@ -618,8 +622,18 @@ void loop() {
         processMenuInput();
         // Update background stars
         updateStars();
-        // Update menu background music
+        // Update menu background music (handles playing through one loop)
         updateMenuBackgroundMusic();
+        
+        // Add timer to play menu music intermittently
+        // static unsigned long lastMenuMusicStartTime = 0; // Moved outside switch
+        // const unsigned long MUSIC_INTERVAL_MS = 20000; // Play music every 20 seconds if not playing // Moved outside switch
+        
+        if (!menuMusicPlaying && (millis() - lastMenuMusicStartTime >= MUSIC_INTERVAL_MS)) {
+          startMenuBackgroundMusic();
+          lastMenuMusicStartTime = millis(); // Reset timer
+        }
+
         // setLedModeMenu(currentMenuItem, MENU_ITEMS); // Already set when menu is drawn
         break;
         
@@ -694,22 +708,24 @@ void loop() {
         // Stop any ongoing music when entering warp mode
         stopMenuBackgroundMusic();
         stopQuizQuestionMusic();
+        // Play warp sound effect
+        updateWarpSound(warpFactor);
         // Process warp input for WARP state
         processInput();
         // Update warp stars
         updateWarpStars();
         setLedModeWarp(); // Set LED for warp mode
         break;
-             
-             
+      
       case State::NORMAL:
         // Stop any ongoing music
         stopMenuBackgroundMusic();
         stopQuizQuestionMusic();
+        // Stop warp sound effect
+        updateWarpSound(0.0f);
         // Process input for NORMAL and DISCOVERY states
         processInput();
         updateStars();
-
         break;
 
 
@@ -717,6 +733,8 @@ void loop() {
         // Stop any ongoing music
         stopMenuBackgroundMusic();
         stopQuizQuestionMusic();
+        // Stop warp sound effect
+        updateWarpSound(0.0f);
         // Process input for NORMAL and DISCOVERY states
         processInput();
         
@@ -882,6 +900,9 @@ void processInput() {
       if (currentTime - lastButtonTime > 300) { // Debounce
         buttonPressed = true;
         lastButtonTime = currentTime;
+        
+        // Play beep sound for button press exiting Discovery
+        playUISound_Beep();
         
         // If showing a celestial object, erase it and clean up its sprite
         if (showingCelestialObject) {
@@ -1768,6 +1789,8 @@ void checkPowerButton() {
       if (buttonState == LOW) {
         pressStartTime = millis();
         Serial.println("Button pressed");
+        // Play beep sound for any main button press
+        playUISound_Beep();
       }
       // Button released
       else {
@@ -1829,7 +1852,6 @@ void powerOff() {
  */
 void drawMenu() {
   tft.fillScreen(BG_COLOR);
-  startMenuBackgroundMusic(); // Start music when menu is drawn
 
   // Draw retro grid background
   const int gridSize = 16;
@@ -1980,7 +2002,7 @@ void drawMenu() {
   tft.setTextColor(COLOR_GREEN);
   tft.setTextSize(1);
   tft.setTextDatum(MC_DATUM);
-  tft.drawString("KNOB: Select  |  BTN: Go", SCREEN_WIDTH/2, footerY + footerHeight/2);
+  tft.drawString("KNOB: Select  |  BTN: Go - Setting", SCREEN_WIDTH/2, footerY + footerHeight/2);
 }
 
 /**
@@ -1999,6 +2021,9 @@ void processMenuInput() {
     secondButtonPressed = true;
     lastSecondButtonTime = millis();
     
+    // Play beep sound for secondary button press
+    playUISound_Beep();
+    
     if (soundSettingsPopupActive) {
       // Close popup
       toggleSoundSettingsPopup();
@@ -2014,29 +2039,46 @@ void processMenuInput() {
   
   // Handle settings popup if active
   if (soundSettingsPopupActive) {
-    // Use pot value to select between sound and LED
-    int newSelection = (potValue > 2048) ? 1 : 0;
+    // Use pot value to select between Sound, LED, and Power Off
+    // There are 3 options (0, 1, 2)
+    int numSettingsOptions = 3;
+    int potRange = 4095 / numSettingsOptions;
+    int newSelection = potValue / potRange;
+    newSelection = constrain(newSelection, 0, numSettingsOptions - 1);
+
     if (newSelection != settingsSelection) {
       settingsSelection = newSelection;
       drawSoundSettingsPopup();  // Redraw with new selection
     }
     
-    // Main button toggles the selected setting
+    // Main button toggles the selected setting or confirms Power Off
     if (digitalRead(BUTTON_PIN) == LOW && !buttonPressed) {
       unsigned long currentTime = millis();
       if (currentTime - lastButtonTime > 300) {
         buttonPressed = true;
         lastButtonTime = currentTime;
         
-        // Toggle the selected setting
+        // Perform action based on selected setting
         if (settingsSelection == 0) {
+          // Toggle Sound
           toggleSound();
-        } else {
+        } else if (settingsSelection == 1) {
+          // Toggle LED
           ledEnabled = !ledEnabled;
+        } else if (settingsSelection == 2) {
+          // Confirm Power Off
+          // Close settings popup before powering off
+          toggleSoundSettingsPopup(); // This will redraw the menu background
+          // Give a small delay for redraw before power off sequence starts
+          delay(100);
+          powerOff(); // Call the power off function
+          return; // Exit processing as we are powering off
         }
         
-        // Redraw the popup to show new state
-        drawSoundSettingsPopup();
+        // Redraw the popup to show new state (unless powering off)
+        if (settingsSelection != 2) {
+          drawSoundSettingsPopup();
+        }
       }
     } else if (digitalRead(BUTTON_PIN) == HIGH) {
       buttonPressed = false;
@@ -2044,110 +2086,107 @@ void processMenuInput() {
     return;
   }
   
-  // Existing menu navigation code
-  if (!soundSettingsPopupActive) {
-    // Only process regular menu navigation if popup is not active
-    // Map pot value (0-4095) directly to menu selection
-    int potRange = 4095 / MENU_ITEMS;
-    int mappedItem = potValue / potRange;
-    mappedItem = constrain(mappedItem, 0, MENU_ITEMS - 1);
+  // Rest of the existing menu processing code...
+  // ... existing code ...
+
+  // --- Start: Restored Main Menu Input Logic ---
+  // This block handles navigation and selection when the settings popup is NOT active.
+
+  // Map pot value (0-4095) directly to menu selection
+  int potRange = 4095 / MENU_ITEMS;
+  int mappedItem = potValue / potRange;
+  mappedItem = constrain(mappedItem, 0, MENU_ITEMS - 1);
+  
+  // Only update if selection changed
+  if (mappedItem != lastMenuItem) {
+    currentMenuItem = mappedItem;
+    setLedModeMenu(currentMenuItem, MENU_ITEMS); // Update LED for menu selection change
     
-    // Only update if selection changed
-    if (mappedItem != lastMenuItem) {
-      currentMenuItem = mappedItem;
-      setLedModeMenu(currentMenuItem, MENU_ITEMS); // Update LED for menu selection change
-      
-      // Play menu navigation sound
-      playMenuNavSound();
-      
-      // Haptic feedback for menu navigation
-      extern bool hapticOverrideActive;
-      extern float hapticOverrideValue;
-      extern unsigned long hapticOverrideEndTime;
-      hapticOverrideActive = true;
-      hapticOverrideValue = 0.3f; // Menu nav intensity
-      hapticOverrideEndTime = millis() + 100; // 100ms burst
-      
-      // --- NEW: Redraw the entire menu for correct highlight ---
-      drawMenu();
-      
-      lastMenuItem = currentMenuItem;
-    }
+    // Play UI navigation sound
+    playUISound_Boop();
     
-    // Check button press for selection
-    if (digitalRead(BUTTON_PIN) == LOW && !buttonPressed) {
-      unsigned long currentTime = millis();
-      if (currentTime - lastButtonTime > 300) { // Debounce
-        buttonPressed = true;
-        lastButtonTime = currentTime;
-        
-        // Play menu selection sound
-        playMenuSelectSound();
-        
-        // Quick visual feedback using correct metrics
-        tft.fillRect(SCREEN_WIDTH/2 - g_boxWidth/2, g_boxY, 
-                    g_boxWidth, g_boxHeight, COLOR_STARFIELD);
-        delay(80);
-        tft.fillRect(SCREEN_WIDTH/2 - g_boxWidth/2, g_boxY, 
-                    g_boxWidth, g_boxHeight, tft.color565(80, 0, 120));
-        
-        // Draw highlighted text with proper scaling
-        tft.setTextSize(g_menuTextSize);
-        tft.setTextColor(COLOR_HIGHLIGHT);
-        
-        int textLen = strlen(menuItems[currentMenuItem].name);
-        int textPixelWidth = textLen * g_charWidth;
-        int textX = SCREEN_WIDTH/2 - textPixelWidth/2;
-        int textY = g_boxY + g_boxHeight/2 - 4*g_menuTextSize;
-        
-        tft.setCursor(textX, textY);
-        tft.print(menuItems[currentMenuItem].name);
-        delay(50);
-        
-        // Switch to the selected state
-        State selectedState = menuItems[currentMenuItem].state;
-        
-        // Stop menu music before transitioning
-        stopMenuBackgroundMusic();
-        
-        // Clear the screen
-        tft.fillScreen(BG_COLOR);
-        
-        // Special handling for each state
-        if (selectedState == State::DISCOVERY) {
-          // For Discovery mode, transition to WARP first to trigger discovery
-          currentState = State::WARP;
-          setLedModeOff(); // Or a specific warp LED effect
-          prevShouldWarp = true; // Set this so next update transitions to DISCOVERY
-        } else if (selectedState == State::STORY) {
-          storyModeManager.init(); // Initialize story mode using the class manager
-          currentState = selectedState;
-          setLedModeOff(); // Or a specific story LED effect
-        } else if (selectedState == State::QUIZ) {
-          currentState = selectedState;
-          // LED mode for quiz will be set in updateQuizMode / startQuiz
-          // setLedModeQuiz(false, true); // Initial state for quiz LEDs
-        } else {
-          currentState = selectedState;
-          setLedModeOff(); // Default off for other states for now
-        }
-      }
-    } else if (digitalRead(BUTTON_PIN) == HIGH) {
-      buttonPressed = false;
-    }
-  } else {
-    // If popup is active, main button closes the popup
-    if (digitalRead(BUTTON_PIN) == LOW && !buttonPressed) {
-      unsigned long currentTime = millis();
-      if (currentTime - lastButtonTime > 300) { // Debounce
-        buttonPressed = true;
-        lastButtonTime = currentTime;
-        toggleSoundSettingsPopup(); // Close popup
-      }
-    } else if (digitalRead(BUTTON_PIN) == HIGH) {
-      buttonPressed = false;
-    }
+    // Haptic feedback for menu navigation
+    extern bool hapticOverrideActive;
+    extern float hapticOverrideValue;
+    extern unsigned long hapticOverrideEndTime;
+    hapticOverrideActive = true;
+    hapticOverrideValue = 0.3f; // Menu nav intensity
+    hapticOverrideEndTime = millis() + 100; // 100ms burst
+    
+    // Redraw the entire menu for correct highlight
+    drawMenu();
+    
+    lastMenuItem = currentMenuItem;
   }
+  
+  // Check button press for selection
+  if (digitalRead(BUTTON_PIN) == LOW && !buttonPressed) {
+    unsigned long currentTime = millis();
+    if (currentTime - lastButtonTime > 300) { // Debounce
+      buttonPressed = true;
+      lastButtonTime = currentTime;
+      
+      // Play UI selection sound (Beep)
+      playUISound_Beep();
+      
+      // Quick visual feedback using correct metrics
+      // Note: Using g_boxY, g_boxWidth, g_boxHeight which are menu-specific metrics.
+      // Ensure these are still appropriate here or replace with general feedback.
+      // For now, keeping them as they were in the original main menu logic.
+      tft.fillRect(SCREEN_WIDTH/2 - g_boxWidth/2, g_boxY, 
+                   g_boxWidth, g_boxHeight, COLOR_STARFIELD);
+      delay(80);
+      tft.fillRect(SCREEN_WIDTH/2 - g_boxWidth/2, g_boxY, 
+                   g_boxWidth, g_boxHeight, tft.color565(80, 0, 120));
+      
+      // Draw highlighted text with proper scaling
+      // Note: Using g_menuTextSize, g_charWidth which are menu-specific metrics.
+      // Ensure these are still appropriate here.
+      tft.setTextSize(g_menuTextSize);
+      tft.setTextColor(COLOR_HIGHLIGHT);
+      
+      int textLen = strlen(menuItems[currentMenuItem].name);
+      int textPixelWidth = textLen * g_charWidth;
+      int textX = SCREEN_WIDTH/2 - textPixelWidth/2;
+      int textY = g_boxY + g_boxHeight/2 - 4*g_menuTextSize; // Adjusted Y based on text height
+      
+      tft.setCursor(textX, textY);
+      tft.print(menuItems[currentMenuItem].name);
+      delay(50);
+      
+      // Switch to the selected state
+      State selectedState = menuItems[currentMenuItem].state;
+      
+      // Stop menu music before transitioning
+      stopMenuBackgroundMusic();
+      
+      // Clear the screen
+      tft.fillScreen(BG_COLOR);
+      
+      // Special handling for each state
+      if (selectedState == State::DISCOVERY) {
+        // For Discovery mode, transition to WARP first to trigger discovery
+        currentState = State::WARP;
+        setLedModeOff(); // Or a specific warp LED effect
+        prevShouldWarp = true; // Set this so next update transitions to DISCOVERY
+      } else if (selectedState == State::STORY) {
+        storyModeManager.init(); // Initialize story mode using the class manager
+        currentState = selectedState;
+        setLedModeOff(); // Or a specific story LED effect
+      } else if (selectedState == State::QUIZ) {
+        currentState = selectedState;
+        // LED mode for quiz will be set in updateQuizMode / startQuiz
+        // setLedModeQuiz(false, true); // Initial state for quiz LEDs
+      } else {
+        currentState = selectedState;
+        setLedModeOff(); // Default off for other states for now
+      }
+    }
+  } else if (digitalRead(BUTTON_PIN) == HIGH) {
+    buttonPressed = false;
+  }
+
+  // --- End: Restored Main Menu Input Logic ---
 }
 
 /**
@@ -2182,6 +2221,8 @@ void updateQuizMode() {
     buttonPressed = true;
     lastButtonTime = now;
     btnEvent = true;
+    // Play beep sound for button press in Quiz mode
+    playUISound_Beep();
   } else if (!btn) {
     buttonPressed = false;
   }
@@ -2243,6 +2284,16 @@ void updateQuizMode() {
       // Process input and check for answer selection
       bool wasAnswered = quizState.answeredCorrectly || quizState.showHint;
       processQuizInput(potValue, btnEvent);
+      
+      // Play navigation sound when selection changes in Quiz mode
+      static int lastQuizSelection = -1;
+      if (quizState.selectedIndex != lastQuizSelection && quizState.selectedIndex != -1) {
+         playUISound_Boop();
+         lastQuizSelection = quizState.selectedIndex;
+      }
+      if (quizState.selectedIndex == -1) { // Reset when no option is selected (e.g., after answering)
+          lastQuizSelection = -1;
+      }
       
       // If answer was just selected in this frame
       if (!wasAnswered && (quizState.answeredCorrectly || quizState.showHint)) {
@@ -2524,12 +2575,41 @@ void hideFactPopup() {
 
 // Add this function to draw the sound settings popup
 void drawSoundSettingsPopup() {
-  // Calculate popup dimensions based on screen size
-  int popupWidth = SCREEN_WIDTH * 0.8;
-  int popupHeight = SCREEN_HEIGHT * 0.4;  // Made taller to fit both toggles
-  int popupX = (SCREEN_WIDTH - popupWidth) / 2;
+  // Fixed dimensions for elements
+  int headerHeight = 20;
+  int toggleHeight = 30;
+  int toggleWidth = SCREEN_WIDTH * 0.7; // Match toggle width to previous calculation
+  int toggleLabelHeight = 15; // Estimate space needed for label above toggle
+  int toggleSpacing = 15;  // Space between toggles
+  
+  // New: Dimensions for the Power Off item
+  int powerOffHeight = 30; // Height of the Power Off button area
+  int powerOffSpacing = 15; // Space before Power Off item
+
+  int instructionsLineHeight = 10; // Estimate line height for size 1 text
+  int numInstructionLines = 2;
+  int instructionsBlockHeight = instructionsLineHeight * numInstructionLines + 5; // Add a bit of space below text
+
+  // Padding
+  int topPadding = 15;
+  int bottomPadding = 10;
+  int sidePadding = SCREEN_WIDTH * 0.075; // Match popupX calculation (SCREEN_WIDTH - popupWidth) / 2
+  
+  // Calculate total required height for the content (labels, toggles, spacing, Power Off)
+  int contentHeight = (toggleLabelHeight + toggleHeight) * 2 + toggleSpacing + // Two toggles + spacing + labels
+                      powerOffSpacing + powerOffHeight; // Power Off item + spacing
+  
+  // Calculate total popup height
+  int popupHeight = headerHeight + topPadding + contentHeight + instructionsBlockHeight + bottomPadding;
+
+  // Calculate popup position
+  int popupWidth = SCREEN_WIDTH - 2 * sidePadding;
+  int popupX = sidePadding;
   int popupY = (SCREEN_HEIGHT - popupHeight) / 2;
   
+  // Clear the area behind the popup before drawing
+  tft.fillRect(popupX - 5, popupY - 5, popupWidth + 10, popupHeight + 10, BG_COLOR); // Clear slightly larger area
+
   // Draw popup background with retro style
   // First draw a shadow
   tft.fillRoundRect(popupX + 5, popupY + 5, popupWidth, popupHeight, 8, COLOR_SHADOW);
@@ -2539,7 +2619,6 @@ void drawSoundSettingsPopup() {
   tft.drawRoundRect(popupX+1, popupY+1, popupWidth-2, popupHeight-2, 7, COLOR_BORDER_ALT);
   
   // Add a retro header bar
-  int headerHeight = 20;
   tft.fillRect(popupX+2, popupY+2, popupWidth-4, headerHeight, COLOR_BORDER);
   
   // Add title
@@ -2548,33 +2627,52 @@ void drawSoundSettingsPopup() {
   tft.setCursor(popupX + 10, popupY + 7);
   tft.print("SETTINGS");
 
-  // Add instructions
-  int instructionsHeight = 20;
-  tft.setTextColor(COLOR_TEXT);
-  tft.setCursor(popupX + 10, popupY + popupHeight - instructionsHeight + 5);
-  tft.print("KNOB: Select  BTN: Toggle  BTN2: Close");
-
-  // Calculate toggle dimensions
-  int toggleWidth = popupWidth * 0.7;
-  int toggleHeight = 30;
-  int toggleSpacing = 20;  // Space between toggles (adjusted for better centering)
-  int totalTogglesHeight = 2 * toggleHeight + toggleSpacing; // Height of both toggles + space
-
-  // Calculate available vertical space for toggles
-  int availableHeight = popupHeight - headerHeight - instructionsHeight - 10; // Subtract header, instructions, and some padding
-
-  // Calculate the starting Y for the block of toggles to center them vertically
-  int startTogglesY = popupY + headerHeight + (availableHeight - totalTogglesHeight) / 2;
+  // Calculate starting Y for the first item block
+  int startItemsY = popupY + headerHeight + topPadding;
   
   // Draw Sound Toggle
-  int soundToggleY = startTogglesY;
+  int soundToggleY = startItemsY + toggleLabelHeight; // Position toggle below its label space
   drawSettingsToggle(popupX, soundToggleY, popupWidth, toggleWidth, toggleHeight, 
                     "SOUND", soundEnabled, settingsSelection == 0);
   
   // Draw LED Toggle
-  int ledToggleY = startTogglesY + toggleHeight + toggleSpacing;
+  int ledToggleY = soundToggleY + toggleHeight + toggleSpacing + toggleLabelHeight; // Position below sound toggle + spacing + its label space
   drawSettingsToggle(popupX, ledToggleY, popupWidth, toggleWidth, toggleHeight, 
                     "LED", ledEnabled, settingsSelection == 1);
+
+  // Draw Power Off item
+  int powerOffY = ledToggleY + toggleHeight + powerOffSpacing; // Position below LED toggle + spacing
+  int powerOffX = popupX + (popupWidth - toggleWidth) / 2; // Align with toggles
+  
+  // Draw highlight if selected
+  if (settingsSelection == 2) {
+     tft.drawRoundRect(powerOffX-2, powerOffY-2, toggleWidth+4, powerOffHeight+4, 15, COLOR_HIGHLIGHT);
+  }
+  // Draw background box for Power Off
+  tft.fillRoundRect(powerOffX, powerOffY, toggleWidth, powerOffHeight, 15, COLOR_MENU_GRID);
+  tft.drawRoundRect(powerOffX, powerOffY, toggleWidth, powerOffHeight, 15, COLOR_BORDER);
+  
+  // Draw Power Off text centered in its box
+  tft.setTextDatum(MC_DATUM);
+  tft.setTextSize(1);
+  tft.setTextColor(settingsSelection == 2 ? COLOR_HIGHLIGHT : COLOR_TEXT);
+  tft.drawString("POWER OFF", powerOffX + toggleWidth/2, powerOffY + powerOffHeight/2);
+  
+  // Add instructions (split into two lines)
+  tft.setTextSize(1);
+  tft.setTextColor(COLOR_TEXT);
+  tft.setTextDatum(MC_DATUM); // Use middle-center datum for easier centering
+  
+  const char* instructions1 = "KNOB: Select";
+  const char* instructions2 = "BTN: Toggle/Confirm  BTN2: Close";
+
+  int instructionsBlockY = popupY + popupHeight - bottomPadding - instructionsBlockHeight + instructionsLineHeight/2 + 2; // Position block and adjust for datum
+
+  // Draw first line centered
+  tft.drawString(instructions1, popupX + popupWidth/2, instructionsBlockY);
+  
+  // Draw second line centered below the first
+  tft.drawString(instructions2, popupX + popupWidth/2, instructionsBlockY + instructionsLineHeight + 2); // Add a bit more line spacing
 }
 
 // Helper function to draw individual toggle switches
@@ -2585,7 +2683,9 @@ void drawSettingsToggle(int popupX, int toggleY, int popupWidth, int toggleWidth
   // Draw label
   tft.setTextSize(1);
   tft.setTextColor(selected ? COLOR_HIGHLIGHT : COLOR_TEXT);
-  tft.setCursor(toggleX, toggleY - 15);
+  // Calculate label position relative to the top of the toggle's allocated space
+  int labelY = toggleY - 15; // 15 pixels above the toggle itself
+  tft.setCursor(toggleX, labelY);
   tft.print(label);
   
   // Toggle background with selection highlight
@@ -2604,16 +2704,16 @@ void drawSettingsToggle(int popupX, int toggleY, int popupWidth, int toggleWidth
                    enabled ? COLOR_GREEN : COLOR_ERROR);
   
   // Add labels
-  int labelY = toggleY + toggleHeight/2 - 4;
+  int labelCenterY = toggleY + toggleHeight/2 - 4; // Vertically center labels in toggle
   
   // OFF label
   tft.setTextColor(enabled ? COLOR_TEXT_ALT : COLOR_TEXT);
-  tft.setCursor(toggleX + 8, labelY);
+  tft.setCursor(toggleX + 8, labelCenterY);
   tft.print("OFF");
   
   // ON label
   tft.setTextColor(enabled ? COLOR_TEXT : COLOR_TEXT_ALT);
-  tft.setCursor(toggleX + toggleWidth - 30, labelY);
+  tft.setCursor(toggleX + toggleWidth - 30, labelCenterY);
   tft.print("ON");
 }
 

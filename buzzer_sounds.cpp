@@ -23,116 +23,56 @@ void initBuzzer() {
 }
 
 void playMenuNavSound() {
-  if (soundEnabled) {
-    tone(BUZZER_PIN, adjustVolume(NOTE_C4), 30);
-  }
+  // This function is now deprecated, using playUISound_Boop instead
+  // if (soundEnabled) {
+  //   tone(BUZZER_PIN, adjustVolume(NOTE_C4), 30);
+  // }
 }
 
 void playMenuSelectSound() {
-  if (soundEnabled) {
-    tone(BUZZER_PIN, adjustVolume(NOTE_G4), 50);
-    delay(50);
-    tone(BUZZER_PIN, adjustVolume(NOTE_C5), 80);
-  }
+  // This function is now deprecated, using playUISound_Beep instead
+  // if (soundEnabled) {
+  //   tone(BUZZER_PIN, adjustVolume(NOTE_G4), 50);
+  //   delay(50);
+  //   tone(BUZZER_PIN, adjustVolume(NOTE_C5), 80);
+  // }
 }
 
 void stopBuzzerSound() {
   noTone(BUZZER_PIN);
 }
 
-// --- Menu Background Music ---
-// A collection of retro space game inspired themes that kids can vibe to
-const int MENU_PATTERN_LENGTH = 64; // Increased length for more complexity
-const int MENU_VARIATIONS = 5;
-int menuMusicNotes[MENU_VARIATIONS][MENU_PATTERN_LENGTH] = {
-  // Variation 1: Space Adventure Theme (Heroic & Sweeping)
-  {
-    NOTE_C4, NOTE_E4, NOTE_G4, NOTE_C5, NOTE_G4, NOTE_E4, NOTE_C4, 0, // C Major Arpeggio
-    NOTE_G4, NOTE_B4, NOTE_D5, NOTE_G5, NOTE_D5, NOTE_B4, NOTE_G4, 0, // G Major Arpeggio
-    NOTE_A4, NOTE_C5, NOTE_E5, NOTE_A5, NOTE_E5, NOTE_C5, NOTE_A4, 0, // A Minor Arpeggio
-    NOTE_F4, NOTE_A4, NOTE_C5, NOTE_F5, NOTE_C5, NOTE_A4, NOTE_F4, 0, // F Major Arpeggio
-    NOTE_C5, NOTE_G4, NOTE_E4, NOTE_C4, NOTE_E4, NOTE_G4, NOTE_C5, NOTE_C6, // Ascending/Descending with Octave Jump
-    NOTE_G5, NOTE_D5, NOTE_B4, NOTE_G4, NOTE_B4, NOTE_D5, NOTE_G5, NOTE_G6,
-    NOTE_A5, NOTE_E5, NOTE_C5, NOTE_A4, NOTE_C5, NOTE_E5, NOTE_A5, NOTE_A6,
-    NOTE_F5, NOTE_C5, NOTE_A4, NOTE_F4, NOTE_A4, NOTE_C5, NOTE_F5, NOTE_F6
-  },
-  // Variation 2: Retro Space Game (8-bit Arcade Style)
-  {
-    NOTE_C5, 0, NOTE_G4, 0, NOTE_E4, 0, NOTE_C4, 0, // Staccato descending
-    NOTE_C5, 0, NOTE_G4, 0, NOTE_E4, 0, NOTE_C4, 0,
-    NOTE_G4, 0, NOTE_D4, 0, NOTE_B3, 0, NOTE_G3, 0, // Lower register
-    NOTE_G4, 0, NOTE_D4, 0, NOTE_B3, 0, NOTE_G3, 0,
-    NOTE_C5, NOTE_C5, NOTE_C5, NOTE_C5, NOTE_G4, NOTE_G4, NOTE_G4, NOTE_G4, // Repeated notes
-    NOTE_A4, NOTE_A4, NOTE_A4, NOTE_A4, NOTE_G4, 0, 0, 0, // Catchy motif
-    NOTE_F4, NOTE_F4, NOTE_E4, NOTE_E4, NOTE_D4, NOTE_D4, NOTE_C4, 0,
-    NOTE_G4, NOTE_G4, NOTE_F4, NOTE_F4, NOTE_E4, NOTE_E4, NOTE_D4, 0
-  },
-  // Variation 3: Cosmic Dance (Upbeat & Syncopated)
-  {
-    NOTE_C4, NOTE_E4, NOTE_G4, NOTE_C5, 0, NOTE_G4, NOTE_E4, NOTE_C4, // Syncopated arpeggio
-    NOTE_F4, NOTE_A4, NOTE_C5, NOTE_F5, 0, NOTE_C5, NOTE_A4, NOTE_F4,
-    NOTE_G4, NOTE_B4, NOTE_D5, NOTE_G5, 0, NOTE_D5, NOTE_B4, NOTE_G4,
-    NOTE_E4, NOTE_GS4, NOTE_B4, NOTE_E5, 0, NOTE_B4, NOTE_GS4, NOTE_E4, // E Major feels bright
-    NOTE_C5, 0, NOTE_E5, 0, NOTE_G5, 0, NOTE_C6, 0, // Higher notes with rests
-    NOTE_A4, 0, NOTE_C5, 0, NOTE_E5, 0, NOTE_A5, 0,
-    NOTE_G4, 0, NOTE_B4, 0, NOTE_D5, 0, NOTE_G5, 0,
-    NOTE_F4, 0, NOTE_A4, 0, NOTE_C5, 0, NOTE_F5, 0
-  },
-  // Variation 4: Star Chaser (Fast & Sequential)
-  {
-    NOTE_C5, NOTE_D5, NOTE_E5, NOTE_F5, NOTE_G5, NOTE_A5, NOTE_B5, NOTE_C6, // Fast scale run
-    NOTE_C6, NOTE_B5, NOTE_A5, NOTE_G5, NOTE_F5, NOTE_E5, NOTE_D5, NOTE_C5,
-    NOTE_G4, NOTE_A4, NOTE_B4, NOTE_C5, NOTE_D5, NOTE_E5, NOTE_FS5, NOTE_G5, // Sequential pattern
-    NOTE_G5, NOTE_FS5, NOTE_E5, NOTE_D5, NOTE_C5, NOTE_B4, NOTE_A4, NOTE_G4,
-    NOTE_C5, NOTE_E5, NOTE_G5, NOTE_C6, NOTE_E5, NOTE_G5, NOTE_C6, NOTE_E6, // Arpeggio sequence
-    NOTE_G5, NOTE_B5, NOTE_D6, NOTE_G6, NOTE_B5, NOTE_D6, NOTE_G6, NOTE_B6,
-    NOTE_A5, NOTE_C6, NOTE_E6, NOTE_A6, NOTE_C6, NOTE_E6, NOTE_A6, NOTE_C7,
-    NOTE_F5, NOTE_A5, NOTE_C6, NOTE_F6, NOTE_A5, NOTE_C6, NOTE_F6, NOTE_A6
-  },
-  // Variation 5: Galaxy Groove (Funky Bass & Melody)
-  {
-    NOTE_C3, 0, NOTE_G3, 0, NOTE_AS3, 0, NOTE_G3, 0, // "Bassline" feel
-    NOTE_F3, 0, NOTE_C4, 0, NOTE_AS3, 0, NOTE_C4, 0,
-    NOTE_G3, 0, NOTE_D4, 0, NOTE_AS3, 0, NOTE_D4, 0,
-    NOTE_E3, 0, NOTE_B3, 0, NOTE_G3, 0, NOTE_B3, 0,
-    NOTE_C5, NOTE_E5, NOTE_G5, NOTE_C5, NOTE_E5, NOTE_G5, NOTE_C5, NOTE_E5, // Syncopated high melody
-    NOTE_F5, NOTE_A5, NOTE_C6, NOTE_F5, NOTE_A5, NOTE_C6, NOTE_F5, NOTE_A5,
-    NOTE_G5, NOTE_B5, NOTE_D6, NOTE_G5, NOTE_B5, NOTE_D6, NOTE_G5, NOTE_B5,
-    NOTE_E5, NOTE_GS5, NOTE_B5, NOTE_E5, NOTE_GS5, NOTE_B5, NOTE_E5, NOTE_GS5
-  }
+// --- Menu Background Music --- - New Iconic & Catchy Theme
+const int MENU_THEME_LENGTH = 16; // A short, catchy loop
+
+int menuThemeNotes[MENU_THEME_LENGTH] = {
+  NOTE_C5, 0,       NOTE_E5, NOTE_G5, // Upbeat arpeggio start
+  NOTE_A5, NOTE_G5, NOTE_E5, 0,       // Quick melodic phrase
+  NOTE_B4, 0,       NOTE_D5, NOTE_F5, // Contrasting phrase
+  NOTE_G5, NOTE_F5, NOTE_D5, 0        // Resolution and loop point
 };
 
-// Adjusted durations for more varied and syncopated rhythms
-int menuMusicDurations[MENU_PATTERN_LENGTH] = {
-  150, 50, 150, 200, 150, 50, 150, 100, // Pattern 1 timing
-  150, 50, 150, 200, 150, 50, 150, 100,
-  150, 50, 150, 200, 150, 50, 150, 100,
-  150, 50, 150, 200, 150, 50, 150, 100,
-  100, 100, 100, 100, 100, 100, 100, 200, // Faster section timing
-  100, 100, 100, 100, 100, 100, 100, 200,
-  100, 100, 100, 100, 100, 100, 100, 200,
-  100, 100, 100, 100, 100, 100, 100, 200
+int menuThemeDurations[MENU_THEME_LENGTH] = {
+  150, 100, 150, 200, // Staccato and held notes
+  120, 120, 150, 150, // Rhythmic variation
+  150, 100, 150, 200, // Similar to first line
+  120, 120, 150, 250  // Slower end to loop nicely
 };
 
 int currentMenuNote = 0;
-int currentMenuVariation = 0;
 unsigned long lastMenuNoteTime = 0;
 bool menuMusicPlaying = false;
-unsigned long menuPatternStartTime = 0;
-const unsigned long VARIATION_CHANGE_TIME = random(5000, 15000); // Change pattern every 15 seconds (slightly longer)
 
 void startMenuBackgroundMusic() {
   if (!soundEnabled) return;
   
   currentMenuNote = 0;
-  currentMenuVariation = 0;
   lastMenuNoteTime = millis();
-  menuPatternStartTime = millis();
   menuMusicPlaying = true;
   
   // Play the first note immediately
-  if (menuMusicNotes[currentMenuVariation][currentMenuNote] > 0) {
-    tone(BUZZER_PIN, adjustVolume(menuMusicNotes[currentMenuVariation][currentMenuNote]));
+  if (menuThemeNotes[currentMenuNote] > 0) {
+    tone(BUZZER_PIN, adjustVolume(menuThemeNotes[currentMenuNote]));
   }
 }
 
@@ -142,51 +82,39 @@ void stopMenuBackgroundMusic() {
 }
 
 void updateMenuBackgroundMusic() {
-  if (!menuMusicPlaying || !soundEnabled) return;
+  if (!menuMusicPlaying || !soundEnabled) return; // Stop if not playing or sound is off
 
   unsigned long currentTime = millis();
   
-  // Add a small random variation to the *duration* check as well, for subtle rhythmic humanization
-  int effectiveDuration = menuMusicDurations[currentMenuNote] + random(-5, 6); // Small random variation
-  if (effectiveDuration < 10) effectiveDuration = 10; // Minimum duration
-
-  if (currentTime - lastMenuNoteTime >= effectiveDuration) {
+  // Check if it's time for the next note
+  if (currentTime - lastMenuNoteTime >= menuThemeDurations[currentMenuNote]) {
     noTone(BUZZER_PIN); // Stop the previous note
     
-    // --- Dynamic Pattern / Variation Switching with Musical Jumps ---
-    // Decide whether to jump to a random part of a random variation
-    // Increased probability to jump to make it feel more dynamic and less like fixed patterns cycling.
-    if (random(100) < 45) { // 45% chance to jump to a random musical phrase start
-        // Jump to a random variation
-        currentMenuVariation = random(MENU_VARIATIONS);
-        
-        // Jump to the start of a random 8-note segment (musical phrase)
-        int randomSegment = random(MENU_PATTERN_LENGTH / 8); // Choose a segment (0 to 7 for 64 notes)
-        currentMenuNote = randomSegment * 8; // Calculate the starting index of the segment
-        
-    } else {
-        // Otherwise, just move to the next note in the current variation
-        currentMenuNote = (currentMenuNote + 1) % MENU_PATTERN_LENGTH; // Wrap around if at the end
+    currentMenuNote++; // Move to the next note
+
+    if (currentMenuNote >= MENU_THEME_LENGTH) {
+      // End of the theme reached, stop music and reset note for next start
+      noTone(BUZZER_PIN); // Stop the last note explicitly
+      menuMusicPlaying = false; // Stop the music playback logic
+      currentMenuNote = 0; // Reset note index for the next time music starts
+      return; // Exit the function as the loop is finished
     }
 
-    lastMenuNoteTime = currentTime; // Update timer for the *next* note
+    lastMenuNoteTime = currentTime; // Update timer for the next note
 
-    // Play the selected note if it's not a rest (0)
-    if (menuMusicNotes[currentMenuVariation][currentMenuNote] > 0) {
-      // Add small random variations to pitch for a less mechanical feel
-      int pitchVariation = random(-2, 3); // Smaller range for subtle variation
-      
-      // Apply pitch variation and play the note
-      int finalPitch = menuMusicNotes[currentMenuVariation][currentMenuNote] + pitchVariation;
-      // Ensure pitch doesn't go below a reasonable minimum (e.g., NOTE_C1) to avoid issues
-      if (finalPitch < NOTE_C1) finalPitch = NOTE_C1;
-      
+    // Play the next note in the theme if it's not a rest
+    // Add small random variations to pitch for a less mechanical feel (optional)
+    int pitchVariation = random(-2, 3); // Smaller range for subtle variation
+    
+    // Apply pitch variation and play the note
+    int finalPitch = menuThemeNotes[currentMenuNote] + pitchVariation;
+    // Ensure pitch doesn't go below a reasonable minimum (e.g., NOTE_C1) to avoid issues
+    if (finalPitch < NOTE_C1) finalPitch = NOTE_C1;
+    
+    if (menuThemeNotes[currentMenuNote] > 0) {
       tone(BUZZER_PIN, adjustVolume(finalPitch));
-      
     } else {
-        // If it's a rest (note 0), make sure no tone is playing
-        noTone(BUZZER_PIN);
-        // The timer still advances by the duration of the rest.
+        noTone(BUZZER_PIN); // Ensure no tone if it's a rest
     }
   }
 }
@@ -391,4 +319,73 @@ void stopAllSounds() {
   helplineMusicPlaying = false;
   popupMusicPlaying = false;
   stopBuzzerSound();
+}
+
+// --- Warp Sound Effect ---
+void updateWarpSound(float warpFactor) {
+  static unsigned long lastPulseTime = 0;
+  static bool toneOn = false;
+  unsigned long now = millis();
+
+  if (!soundEnabled) {
+    noTone(BUZZER_PIN);
+    toneOn = false;
+    return;
+  }
+
+  // If warp is not engaged, stop sound
+  if (warpFactor < 0.05f) {
+    noTone(BUZZER_PIN);
+    toneOn = false;
+    return;
+  }
+
+  // Map warpFactor to frequency and pulse rate
+  int minFreq = NOTE_C4; // Minimum frequency
+  int maxFreq = NOTE_C6; // Maximum frequency
+  int freq = minFreq + (maxFreq - minFreq) * warpFactor;
+
+  // Add slight randomness to frequency for a more dynamic sound
+  int pitchVariation = random(-5, 6); // Random variation for a richer sound
+  freq += pitchVariation;
+
+  // Ensure frequency stays within bounds
+  if (freq < minFreq) freq = minFreq;
+  if (freq > maxFreq) freq = maxFreq;
+
+  int minPulse = 120; // ms
+  int maxPulse = 30;  // ms
+  int pulse = minPulse - (minPulse - maxPulse) * warpFactor;
+  if (pulse < maxPulse) pulse = maxPulse;
+
+  // Pulse the tone for a choppy engine effect
+  if (now - lastPulseTime > pulse) {
+    lastPulseTime = now;
+    if (!toneOn) {
+      tone(BUZZER_PIN, freq);
+      toneOn = true;
+    } else {
+      noTone(BUZZER_PIN);
+      toneOn = false;
+    }
+  }
+}
+
+// New UI Sounds Implementation
+void playUISound_Beep() {
+  if (soundEnabled) {
+    // A simple, slightly higher pitch tone for button presses
+    tone(BUZZER_PIN, adjustVolume(NOTE_G5), 50); // Using G5
+    delay(50); // Keep buzzer active for the tone duration
+    noTone(BUZZER_PIN); // Ensure tone stops after playing
+  }
+}
+
+void playUISound_Boop() {
+  if (soundEnabled) {
+    // A slightly lower pitch tone for navigation/highlighting
+    tone(BUZZER_PIN, adjustVolume(NOTE_E4), 40); // Using E4
+    delay(40); // Keep buzzer active for the tone duration
+    noTone(BUZZER_PIN); // Ensure tone stops after playing
+  }
 } 
