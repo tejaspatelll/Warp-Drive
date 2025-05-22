@@ -559,29 +559,69 @@ void _updateTransitionEffect() {
 
 void updateLedEffects() {
     unsigned long currentTime = millis();
+    if (!ledEnabled) {
+        FastLED.clear();
+        FastLED.show();
+        // Reset animation state variables when disabled
+        animationStartTime = currentTime;
+        phase = 0.0f;
+        step = 0;
+        menuPulseBrightness = 0;
+        menuPulseDir = true;
+        quizSearchPos = 0;
+        storyBreathPhase = 0.0f;
+        warpChasePos = 0;
+        lastWarpStepTime = currentTime;
+        lastDiscoveryEffectTime = currentTime;
+        currentLedMode = LedMode::OFF; // Ensure mode is reflected
+        previousLedMode = LedMode::OFF; // Reset transition state
+        return;
+    }
+
+    // Only update if enough time has passed
     if (currentTime - lastLedUpdateTime < LED_UPDATE_INTERVAL) {
-        return; // Update at defined interval
+        return;
     }
     lastLedUpdateTime = currentTime;
 
-    LedMode modeToExecute = currentLedMode;
+    // Handle transition first
     if (currentLedMode == LedMode::TRANSITION) {
-         _updateTransitionEffect();
-    } else if (currentLedMode == LedMode::MENU) {
-        _updateMenuEffect();
-    } else if (currentLedMode == LedMode::QUIZ) {
-        _updateQuizEffect();
-    } else if (currentLedMode == LedMode::STORY) {
-        _updateStoryEffect();
-    } else if (currentLedMode == LedMode::WARP) {
-        _updateWarpEffect();
-    } else if (currentLedMode == LedMode::DISCOVERY) {
-        _updateDiscoveryEffect();
-    } else if (currentLedMode == LedMode::OFF) {
-        FastLED.clear(); // Ensure LEDs are off
+        _updateTransitionEffect();
+        // After transition, the target mode is effectively the current mode for the next frame
+        if (millis() - transitionStartTime >= TRANSITION_DURATION) {
+            currentLedMode = previousLedMode; // Note: previousLedMode is actually the TARGET mode set by setLedModeX
+            previousLedMode = LedMode::OFF; // Reset for next transition
+            // Ensure we run the target mode effect immediately after transition finishes
+            // Fall through to the switch below
+        } else {
+            FastLED.show();
+            return; // Stay in transition until duration is met
+        }
     }
 
-    FastLED.setBrightness(BRIGHTNESS); // Apply global brightness
+    // Dispatch to the correct animation function based on current mode
+    switch (currentLedMode) {
+        case LedMode::MENU:
+            _updateMenuEffect();
+            break;
+        case LedMode::QUIZ:
+            _updateQuizEffect();
+            break;
+        case LedMode::STORY:
+            _updateStoryEffect();
+            break;
+        case LedMode::WARP:
+            _updateWarpEffect();
+            break;
+        case LedMode::DISCOVERY:
+            _updateDiscoveryEffect();
+            break;
+        case LedMode::OFF:
+        case LedMode::TRANSITION:
+            // Handled above or no effect needed in these states
+            break;
+    }
+
     FastLED.show();
 }
 

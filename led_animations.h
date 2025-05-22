@@ -3,26 +3,27 @@
 
 #include <FastLED.h>
 
-// Define LED properties
-#define LED_PIN 2
-#define NUM_LEDS 2
-#define LED_TYPE WS2812B
+// LED strip configuration
+#define LED_PIN     2
+#define NUM_LEDS    2
+#define BRIGHTNESS  64
+#define LED_TYPE    WS2812B
 #define COLOR_ORDER GRB
-#define BRIGHTNESS 30
 
-// Declare the LED array and controller
+// LED array - Declaration only
 extern CRGB leds[NUM_LEDS];
 
-// Function declarations
+// External reference to ledEnabled
+extern bool ledEnabled;
+
+// Function declarations (Prototypes)
 void setupLeds();
-void ledsOff();
-void setLedColor(uint8_t ledIndex, uint32_t color);
 void setLedModeMenu(int currentSelection, int numItems);
 void setLedModeQuiz(bool answerCorrect, bool waitingForAnswer);
+void setLedModeStory();
+void setLedModeWarp();
+void setLedModeDiscovery(const char* objectName);
 void setLedModeOff();
-void setLedModeStory(); // New: Set LED mode for Story Mode
-void setLedModeWarp(); // New: Set LED mode for Warp Mode
-void setLedModeDiscovery(const char* objectName); // New: Set LED mode for Discovery Mode (objectName can be "None" for empty space)
-void updateLedEffects(); // General update function to be called in main loop
+void updateLedEffects();
 
 #endif // LED_ANIMATIONS_H 

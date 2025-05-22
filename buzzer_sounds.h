@@ -6,8 +6,14 @@
 // Define the pin connected to the buzzer
 #define BUZZER_PIN 6 // User requested pin 6
 
-// Volume control (30% as requested)
-#define VOLUME_FACTOR 0.3f
+// Volume control (50% as user adjusted)
+#define VOLUME_FACTOR 0.5f
+
+// Global sound toggle flag
+extern bool soundEnabled;
+
+// Function to toggle sound on/off
+void toggleSound();
 
 // Note frequencies for easier music composition
 #define NOTE_B0  31
@@ -72,6 +78,18 @@
 #define NOTE_AS5 932
 #define NOTE_B5  988
 #define NOTE_C6  1047 // Add definition for C6
+#define NOTE_CS6 1109
+#define NOTE_D6  1175 // Add definition for D6
+#define NOTE_DS6 1245
+#define NOTE_E6  1319 // Add definition for E6
+#define NOTE_F6  1397 // Add definition for F6
+#define NOTE_FS6 1480
+#define NOTE_G6  1568 // Add definition for G6
+#define NOTE_GS6 1661
+#define NOTE_A6  1760 // Add definition for A6
+#define NOTE_AS6 1865
+#define NOTE_B6  1976 // Add definition for B6
+#define NOTE_C7  2093 // Add definition for C7
 
 // Initialize the buzzer pin
 void initBuzzer();

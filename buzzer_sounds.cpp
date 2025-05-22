@@ -1,5 +1,17 @@
 #include "buzzer_sounds.h"
 
+// Global sound toggle flag - initially enabled
+bool soundEnabled = true;
+
+// Function to toggle sound on/off
+void toggleSound() {
+  soundEnabled = !soundEnabled;
+  if (!soundEnabled) {
+    // Immediately stop any active sounds when toggling off
+    stopBuzzerSound();
+  }
+}
+
 // Helper function to apply volume factor to frequency
 inline int adjustVolume(int frequency) {
   return round(frequency * VOLUME_FACTOR);
@@ -11,13 +23,17 @@ void initBuzzer() {
 }
 
 void playMenuNavSound() {
-  tone(BUZZER_PIN, adjustVolume(NOTE_C4), 30);
+  if (soundEnabled) {
+    tone(BUZZER_PIN, adjustVolume(NOTE_C4), 30);
+  }
 }
 
 void playMenuSelectSound() {
-  tone(BUZZER_PIN, adjustVolume(NOTE_G4), 50);
-  delay(50);
-  tone(BUZZER_PIN, adjustVolume(NOTE_C5), 80);
+  if (soundEnabled) {
+    tone(BUZZER_PIN, adjustVolume(NOTE_G4), 50);
+    delay(50);
+    tone(BUZZER_PIN, adjustVolume(NOTE_C5), 80);
+  }
 }
 
 void stopBuzzerSound() {
@@ -26,63 +42,76 @@ void stopBuzzerSound() {
 
 // --- Menu Background Music ---
 // A collection of retro space game inspired themes that kids can vibe to
-const int MENU_PATTERN_LENGTH = 48;
+const int MENU_PATTERN_LENGTH = 64; // Increased length for more complexity
 const int MENU_VARIATIONS = 5;
 int menuMusicNotes[MENU_VARIATIONS][MENU_PATTERN_LENGTH] = {
-  // Variation 1: Space Adventure Theme (Major Scale with Jumps)
+  // Variation 1: Space Adventure Theme (Heroic & Sweeping)
   {
-    NOTE_C4, NOTE_E4, NOTE_G4, NOTE_C5, NOTE_G4, NOTE_E4, NOTE_C4, 0,
-    NOTE_F4, NOTE_A4, NOTE_C5, NOTE_F5, NOTE_C5, NOTE_A4, NOTE_F4, 0,
-    NOTE_G4, NOTE_B4, NOTE_D5, NOTE_G5, NOTE_D5, NOTE_B4, NOTE_G4, 0,
-    NOTE_E4, NOTE_G4, NOTE_B4, NOTE_E5, NOTE_B4, NOTE_G4, NOTE_E4, 0,
-    NOTE_A4, NOTE_C5, NOTE_E5, NOTE_A5, NOTE_E5, NOTE_C5, NOTE_A4, 0,
-    NOTE_G4, NOTE_B4, NOTE_D5, NOTE_G5, NOTE_D5, NOTE_B4, NOTE_G4, 0
+    NOTE_C4, NOTE_E4, NOTE_G4, NOTE_C5, NOTE_G4, NOTE_E4, NOTE_C4, 0, // C Major Arpeggio
+    NOTE_G4, NOTE_B4, NOTE_D5, NOTE_G5, NOTE_D5, NOTE_B4, NOTE_G4, 0, // G Major Arpeggio
+    NOTE_A4, NOTE_C5, NOTE_E5, NOTE_A5, NOTE_E5, NOTE_C5, NOTE_A4, 0, // A Minor Arpeggio
+    NOTE_F4, NOTE_A4, NOTE_C5, NOTE_F5, NOTE_C5, NOTE_A4, NOTE_F4, 0, // F Major Arpeggio
+    NOTE_C5, NOTE_G4, NOTE_E4, NOTE_C4, NOTE_E4, NOTE_G4, NOTE_C5, NOTE_C6, // Ascending/Descending with Octave Jump
+    NOTE_G5, NOTE_D5, NOTE_B4, NOTE_G4, NOTE_B4, NOTE_D5, NOTE_G5, NOTE_G6,
+    NOTE_A5, NOTE_E5, NOTE_C5, NOTE_A4, NOTE_C5, NOTE_E5, NOTE_A5, NOTE_A6,
+    NOTE_F5, NOTE_C5, NOTE_A4, NOTE_F4, NOTE_A4, NOTE_C5, NOTE_F5, NOTE_F6
   },
-  // Variation 2: Retro Space Game (Classic Arcade Style)
+  // Variation 2: Retro Space Game (8-bit Arcade Style)
   {
-    NOTE_C5, NOTE_C5, NOTE_G4, NOTE_G4, NOTE_A4, NOTE_A4, NOTE_G4, 0,
+    NOTE_C5, 0, NOTE_G4, 0, NOTE_E4, 0, NOTE_C4, 0, // Staccato descending
+    NOTE_C5, 0, NOTE_G4, 0, NOTE_E4, 0, NOTE_C4, 0,
+    NOTE_G4, 0, NOTE_D4, 0, NOTE_B3, 0, NOTE_G3, 0, // Lower register
+    NOTE_G4, 0, NOTE_D4, 0, NOTE_B3, 0, NOTE_G3, 0,
+    NOTE_C5, NOTE_C5, NOTE_C5, NOTE_C5, NOTE_G4, NOTE_G4, NOTE_G4, NOTE_G4, // Repeated notes
+    NOTE_A4, NOTE_A4, NOTE_A4, NOTE_A4, NOTE_G4, 0, 0, 0, // Catchy motif
     NOTE_F4, NOTE_F4, NOTE_E4, NOTE_E4, NOTE_D4, NOTE_D4, NOTE_C4, 0,
-    NOTE_G4, NOTE_G4, NOTE_F4, NOTE_F4, NOTE_E4, NOTE_E4, NOTE_D4, 0,
-    NOTE_C5, NOTE_C5, NOTE_B4, NOTE_B4, NOTE_A4, NOTE_A4, NOTE_G4, 0,
-    NOTE_A4, NOTE_A4, NOTE_G4, NOTE_G4, NOTE_F4, NOTE_F4, NOTE_E4, 0,
-    NOTE_D5, NOTE_D5, NOTE_C5, NOTE_C5, NOTE_B4, NOTE_B4, NOTE_C5, 0
+    NOTE_G4, NOTE_G4, NOTE_F4, NOTE_F4, NOTE_E4, NOTE_E4, NOTE_D4, 0
   },
-  // Variation 3: Cosmic Dance (Upbeat and Bouncy)
+  // Variation 3: Cosmic Dance (Upbeat & Syncopated)
   {
-    NOTE_C4, NOTE_E4, NOTE_C4, NOTE_G4, NOTE_C5, NOTE_G4, NOTE_E4, NOTE_C4,
-    NOTE_F4, NOTE_A4, NOTE_F4, NOTE_C5, NOTE_F5, NOTE_C5, NOTE_A4, NOTE_F4,
-    NOTE_G4, NOTE_B4, NOTE_G4, NOTE_D5, NOTE_G5, NOTE_D5, NOTE_B4, NOTE_G4,
-    NOTE_C5, NOTE_E5, NOTE_C5, NOTE_G5, NOTE_C6, NOTE_G5, NOTE_E5, NOTE_C5,
-    NOTE_A4, NOTE_C5, NOTE_A4, NOTE_E5, NOTE_A5, NOTE_E5, NOTE_C5, NOTE_A4,
-    NOTE_G4, NOTE_B4, NOTE_G4, NOTE_D5, NOTE_G5, NOTE_D5, NOTE_B4, NOTE_G4
+    NOTE_C4, NOTE_E4, NOTE_G4, NOTE_C5, 0, NOTE_G4, NOTE_E4, NOTE_C4, // Syncopated arpeggio
+    NOTE_F4, NOTE_A4, NOTE_C5, NOTE_F5, 0, NOTE_C5, NOTE_A4, NOTE_F4,
+    NOTE_G4, NOTE_B4, NOTE_D5, NOTE_G5, 0, NOTE_D5, NOTE_B4, NOTE_G4,
+    NOTE_E4, NOTE_GS4, NOTE_B4, NOTE_E5, 0, NOTE_B4, NOTE_GS4, NOTE_E4, // E Major feels bright
+    NOTE_C5, 0, NOTE_E5, 0, NOTE_G5, 0, NOTE_C6, 0, // Higher notes with rests
+    NOTE_A4, 0, NOTE_C5, 0, NOTE_E5, 0, NOTE_A5, 0,
+    NOTE_G4, 0, NOTE_B4, 0, NOTE_D5, 0, NOTE_G5, 0,
+    NOTE_F4, 0, NOTE_A4, 0, NOTE_C5, 0, NOTE_F5, 0
   },
-  // Variation 4: Star Chaser (Fast-paced and Exciting)
+  // Variation 4: Star Chaser (Fast & Sequential)
   {
-    NOTE_C5, NOTE_G4, NOTE_E4, NOTE_C4, NOTE_E4, NOTE_G4, NOTE_C5, NOTE_E5,
-    NOTE_F5, NOTE_C5, NOTE_A4, NOTE_F4, NOTE_A4, NOTE_C5, NOTE_F5, NOTE_A5,
-    NOTE_G5, NOTE_D5, NOTE_B4, NOTE_G4, NOTE_B4, NOTE_D5, NOTE_G5, NOTE_B5,
-    NOTE_E5, NOTE_B4, NOTE_G4, NOTE_E4, NOTE_G4, NOTE_B4, NOTE_E5, NOTE_G5,
-    NOTE_A5, NOTE_E5, NOTE_C5, NOTE_A4, NOTE_C5, NOTE_E5, NOTE_A5, NOTE_C6,
-    NOTE_G5, NOTE_D5, NOTE_B4, NOTE_G4, NOTE_B4, NOTE_D5, NOTE_G5, NOTE_B5
+    NOTE_C5, NOTE_D5, NOTE_E5, NOTE_F5, NOTE_G5, NOTE_A5, NOTE_B5, NOTE_C6, // Fast scale run
+    NOTE_C6, NOTE_B5, NOTE_A5, NOTE_G5, NOTE_F5, NOTE_E5, NOTE_D5, NOTE_C5,
+    NOTE_G4, NOTE_A4, NOTE_B4, NOTE_C5, NOTE_D5, NOTE_E5, NOTE_FS5, NOTE_G5, // Sequential pattern
+    NOTE_G5, NOTE_FS5, NOTE_E5, NOTE_D5, NOTE_C5, NOTE_B4, NOTE_A4, NOTE_G4,
+    NOTE_C5, NOTE_E5, NOTE_G5, NOTE_C6, NOTE_E5, NOTE_G5, NOTE_C6, NOTE_E6, // Arpeggio sequence
+    NOTE_G5, NOTE_B5, NOTE_D6, NOTE_G6, NOTE_B5, NOTE_D6, NOTE_G6, NOTE_B6,
+    NOTE_A5, NOTE_C6, NOTE_E6, NOTE_A6, NOTE_C6, NOTE_E6, NOTE_A6, NOTE_C7,
+    NOTE_F5, NOTE_A5, NOTE_C6, NOTE_F6, NOTE_A5, NOTE_C6, NOTE_F6, NOTE_A6
   },
-  // Variation 5: Galaxy Groove (Funky Space Rhythm)
+  // Variation 5: Galaxy Groove (Funky Bass & Melody)
   {
-    NOTE_C4, NOTE_C5, NOTE_G4, NOTE_E4, NOTE_C4, NOTE_E4, NOTE_G4, NOTE_C5,
-    NOTE_F4, NOTE_F5, NOTE_C5, NOTE_A4, NOTE_F4, NOTE_A4, NOTE_C5, NOTE_F5,
-    NOTE_G4, NOTE_G5, NOTE_D5, NOTE_B4, NOTE_G4, NOTE_B4, NOTE_D5, NOTE_G5,
-    NOTE_E4, NOTE_E5, NOTE_B4, NOTE_G4, NOTE_E4, NOTE_G4, NOTE_B4, NOTE_E5,
-    NOTE_A4, NOTE_A5, NOTE_E5, NOTE_C5, NOTE_A4, NOTE_C5, NOTE_E5, NOTE_A5,
-    NOTE_G4, NOTE_G5, NOTE_D5, NOTE_B4, NOTE_G4, NOTE_B4, NOTE_D5, NOTE_G5
+    NOTE_C3, 0, NOTE_G3, 0, NOTE_AS3, 0, NOTE_G3, 0, // "Bassline" feel
+    NOTE_F3, 0, NOTE_C4, 0, NOTE_AS3, 0, NOTE_C4, 0,
+    NOTE_G3, 0, NOTE_D4, 0, NOTE_AS3, 0, NOTE_D4, 0,
+    NOTE_E3, 0, NOTE_B3, 0, NOTE_G3, 0, NOTE_B3, 0,
+    NOTE_C5, NOTE_E5, NOTE_G5, NOTE_C5, NOTE_E5, NOTE_G5, NOTE_C5, NOTE_E5, // Syncopated high melody
+    NOTE_F5, NOTE_A5, NOTE_C6, NOTE_F5, NOTE_A5, NOTE_C6, NOTE_F5, NOTE_A5,
+    NOTE_G5, NOTE_B5, NOTE_D6, NOTE_G5, NOTE_B5, NOTE_D6, NOTE_G5, NOTE_B5,
+    NOTE_E5, NOTE_GS5, NOTE_B5, NOTE_E5, NOTE_GS5, NOTE_B5, NOTE_E5, NOTE_GS5
   }
 };
 
+// Adjusted durations for more varied and syncopated rhythms
 int menuMusicDurations[MENU_PATTERN_LENGTH] = {
-  150, 150, 150, 200, 150, 150, 150, 100,  // More dynamic rhythm
-  150, 150, 150, 200, 150, 150, 150, 100,
-  150, 150, 150, 200, 150, 150, 150, 100,
-  150, 150, 150, 200, 150, 150, 150, 100,
-  150, 150, 150, 200, 150, 150, 150, 100,
-  150, 150, 150, 200, 150, 150, 150, 100
+  150, 50, 150, 200, 150, 50, 150, 100, // Pattern 1 timing
+  150, 50, 150, 200, 150, 50, 150, 100,
+  150, 50, 150, 200, 150, 50, 150, 100,
+  150, 50, 150, 200, 150, 50, 150, 100,
+  100, 100, 100, 100, 100, 100, 100, 200, // Faster section timing
+  100, 100, 100, 100, 100, 100, 100, 200,
+  100, 100, 100, 100, 100, 100, 100, 200,
+  100, 100, 100, 100, 100, 100, 100, 200
 };
 
 int currentMenuNote = 0;
@@ -90,15 +119,21 @@ int currentMenuVariation = 0;
 unsigned long lastMenuNoteTime = 0;
 bool menuMusicPlaying = false;
 unsigned long menuPatternStartTime = 0;
-const unsigned long VARIATION_CHANGE_TIME = 10000; // Change pattern every 10 seconds
+const unsigned long VARIATION_CHANGE_TIME = random(5000, 15000); // Change pattern every 15 seconds (slightly longer)
 
 void startMenuBackgroundMusic() {
+  if (!soundEnabled) return;
+  
   currentMenuNote = 0;
   currentMenuVariation = 0;
   lastMenuNoteTime = millis();
   menuPatternStartTime = millis();
   menuMusicPlaying = true;
-  tone(BUZZER_PIN, adjustVolume(menuMusicNotes[currentMenuVariation][currentMenuNote]));
+  
+  // Play the first note immediately
+  if (menuMusicNotes[currentMenuVariation][currentMenuNote] > 0) {
+    tone(BUZZER_PIN, adjustVolume(menuMusicNotes[currentMenuVariation][currentMenuNote]));
+  }
 }
 
 void stopMenuBackgroundMusic() {
@@ -107,28 +142,52 @@ void stopMenuBackgroundMusic() {
 }
 
 void updateMenuBackgroundMusic() {
-  if (!menuMusicPlaying) return;
+  if (!menuMusicPlaying || !soundEnabled) return;
 
   unsigned long currentTime = millis();
   
-  // Check if it's time to change variation
-  if (currentTime - menuPatternStartTime >= VARIATION_CHANGE_TIME) {
-    currentMenuVariation = (currentMenuVariation + 1) % MENU_VARIATIONS;
-    menuPatternStartTime = currentTime;
-  }
+  // Add a small random variation to the *duration* check as well, for subtle rhythmic humanization
+  int effectiveDuration = menuMusicDurations[currentMenuNote] + random(-5, 6); // Small random variation
+  if (effectiveDuration < 10) effectiveDuration = 10; // Minimum duration
 
-  // Update current note
-  if (currentTime - lastMenuNoteTime >= menuMusicDurations[currentMenuNote]) {
-    noTone(BUZZER_PIN);
-    currentMenuNote = (currentMenuNote + 1) % MENU_PATTERN_LENGTH;
+  if (currentTime - lastMenuNoteTime >= effectiveDuration) {
+    noTone(BUZZER_PIN); // Stop the previous note
     
-    // Add small random variations to timing and pitch for less mechanical feel
-    int durationVariation = random(-20, 21);
-    int pitchVariation = random(-5, 6);
-    
-    tone(BUZZER_PIN, 
-         adjustVolume(menuMusicNotes[currentMenuVariation][currentMenuNote] + pitchVariation));
-    lastMenuNoteTime = currentTime;
+    // --- Dynamic Pattern / Variation Switching with Musical Jumps ---
+    // Decide whether to jump to a random part of a random variation
+    // Increased probability to jump to make it feel more dynamic and less like fixed patterns cycling.
+    if (random(100) < 45) { // 45% chance to jump to a random musical phrase start
+        // Jump to a random variation
+        currentMenuVariation = random(MENU_VARIATIONS);
+        
+        // Jump to the start of a random 8-note segment (musical phrase)
+        int randomSegment = random(MENU_PATTERN_LENGTH / 8); // Choose a segment (0 to 7 for 64 notes)
+        currentMenuNote = randomSegment * 8; // Calculate the starting index of the segment
+        
+    } else {
+        // Otherwise, just move to the next note in the current variation
+        currentMenuNote = (currentMenuNote + 1) % MENU_PATTERN_LENGTH; // Wrap around if at the end
+    }
+
+    lastMenuNoteTime = currentTime; // Update timer for the *next* note
+
+    // Play the selected note if it's not a rest (0)
+    if (menuMusicNotes[currentMenuVariation][currentMenuNote] > 0) {
+      // Add small random variations to pitch for a less mechanical feel
+      int pitchVariation = random(-2, 3); // Smaller range for subtle variation
+      
+      // Apply pitch variation and play the note
+      int finalPitch = menuMusicNotes[currentMenuVariation][currentMenuNote] + pitchVariation;
+      // Ensure pitch doesn't go below a reasonable minimum (e.g., NOTE_C1) to avoid issues
+      if (finalPitch < NOTE_C1) finalPitch = NOTE_C1;
+      
+      tone(BUZZER_PIN, adjustVolume(finalPitch));
+      
+    } else {
+        // If it's a rest (note 0), make sure no tone is playing
+        noTone(BUZZER_PIN);
+        // The timer still advances by the duration of the rest.
+    }
   }
 }
 
@@ -165,6 +224,8 @@ unsigned long lastQuizNoteTime = 0;
 bool quizQuestionMusicPlaying = false;
 
 void startQuizQuestionMusic() {
+  if (!soundEnabled) return;
+  
   currentQuizNote = 0;
   lastQuizNoteTime = millis();
   quizQuestionMusicPlaying = true;
@@ -177,7 +238,7 @@ void stopQuizQuestionMusic() {
 }
 
 void updateQuizQuestionMusic() {
-  if (!quizQuestionMusicPlaying) return;
+  if (!quizQuestionMusicPlaying || !soundEnabled) return;
 
   unsigned long currentTime = millis();
   if (currentTime - lastQuizNoteTime >= quizQuestionDurations[currentQuizNote]) {
@@ -210,6 +271,8 @@ unsigned long lastHelplineNoteTime = 0;
 bool helplineMusicPlaying = false;
 
 void startQuizHelplineMusic() {
+  if (!soundEnabled) return;
+  
   currentHelplineNote = 0;
   lastHelplineNoteTime = millis();
   helplineMusicPlaying = true;
@@ -222,7 +285,7 @@ void stopQuizHelplineMusic() {
 }
 
 void updateQuizHelplineMusic() {
-  if (!helplineMusicPlaying) return;
+  if (!helplineMusicPlaying || !soundEnabled) return;
 
   unsigned long currentTime = millis();
   if (currentTime - lastHelplineNoteTime >= helplineDurations[currentHelplineNote]) {
@@ -254,6 +317,8 @@ unsigned long lastPopupNoteTime = 0;
 bool popupMusicPlaying = false;
 
 void startQuizPopupMusic() {
+  if (!soundEnabled) return;
+  
   currentPopupNote = 0;
   lastPopupNoteTime = millis();
   popupMusicPlaying = true;
@@ -266,7 +331,7 @@ void stopQuizPopupMusic() {
 }
 
 void updateQuizPopupMusic() {
-  if (!popupMusicPlaying) return;
+  if (!popupMusicPlaying || !soundEnabled) return;
 
   unsigned long currentTime = millis();
   if (currentTime - lastPopupNoteTime >= popupDurations[currentPopupNote]) {
@@ -278,6 +343,8 @@ void updateQuizPopupMusic() {
 }
 
 void playQuizCorrectAnswerSound() {
+  if (!soundEnabled) return;
+  
   // Triumphant ascending arpeggio with harmony
   tone(BUZZER_PIN, adjustVolume(NOTE_C4), 100);
   delay(100);
@@ -292,6 +359,8 @@ void playQuizCorrectAnswerSound() {
 }
 
 void playQuizWrongAnswerSound() {
+  if (!soundEnabled) return;
+  
   // Descending minor second with echo
   tone(BUZZER_PIN, adjustVolume(NOTE_C4), 200);
   delay(200);
@@ -303,6 +372,8 @@ void playQuizWrongAnswerSound() {
 }
 
 void playQuizOptionHighlightSound() {
+  if (!soundEnabled) return;
+  
   // Quick electronic blip
   tone(BUZZER_PIN, adjustVolume(NOTE_G4), 30);
 }
