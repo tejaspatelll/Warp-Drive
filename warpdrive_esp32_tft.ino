@@ -339,6 +339,7 @@ float objectScale;
 // Flag for state transitions and celestial object display
 bool prevShouldWarp = false;
 bool showingCelestialObject = false;
+bool discoveryObjectSoundPlayed = false; // Track if sound has been played for current object
 
 // Using structs and variables defined in blackhole.h
 uint16_t prevPhotonRingColor;
@@ -918,6 +919,7 @@ void processInput() {
           
           eraseCelestialObject(); // This will call deleteSprite for the specific object
           showingCelestialObject = false;
+          discoveryObjectSoundPlayed = false; // Reset sound flag when leaving discovery
           
           // Force another cleanup and screen redraw
           cleanupAllCelestialObjectSprites();
@@ -927,6 +929,8 @@ void processInput() {
         // Return to menu with screen clear
         currentState = State::MENU;
         setLedModeMenu(currentMenuItem, MENU_ITEMS); // Set LED for menu
+        // Play menu transition sound
+        playStateTransitionSound("MENU");
         tft.fillScreen(BG_COLOR);
         delay(10); // Small delay to ensure clean screen
         drawMenu();
@@ -1084,6 +1088,25 @@ void processInput() {
       // Set the current object
       currentObject = static_cast<CelestialObject>(objectIndex);
       discoveryStartTime = millis();
+      discoveryObjectSoundPlayed = false; // Reset sound flag for new object
+
+      // Play discovery object sound based on object type
+      switch (currentObject) {
+        case CelestialObject::STAR: playDiscoveryObjectSound("STAR"); break;
+        case CelestialObject::PLANET: playDiscoveryObjectSound("PLANET"); break;
+        case CelestialObject::NEBULA: playDiscoveryObjectSound("NEBULA"); break;
+        case CelestialObject::GALAXY: playDiscoveryObjectSound("GALAXY"); break;
+        case CelestialObject::BLACK_HOLE: playDiscoveryObjectSound("BLACK_HOLE"); break;
+        case CelestialObject::PULSAR: playDiscoveryObjectSound("PULSAR"); break;
+        case CelestialObject::SUPERNOVA: playDiscoveryObjectSound("SUPERNOVA"); break;
+        case CelestialObject::COMET: playDiscoveryObjectSound("COMET"); break;
+        case CelestialObject::BINARY_STAR: playDiscoveryObjectSound("BINARY_STAR"); break;
+        case CelestialObject::SPACE_STATION: playDiscoveryObjectSound("SPACE_STATION"); break;
+        case CelestialObject::SOLAR_SYSTEM: playDiscoveryObjectSound("SOLAR_SYSTEM"); break;
+        case CelestialObject::ASTEROID_FIELD: playDiscoveryObjectSound("ASTEROID_FIELD"); break;
+        default: break;
+      }
+      discoveryObjectSoundPlayed = true; // Mark sound as played
 
       // Position celestial objects with appropriate location and scale
       if (currentObject == CelestialObject::BLACK_HOLE) {
@@ -2180,6 +2203,14 @@ void processMenuInput() {
       } else {
         currentState = selectedState;
         setLedModeOff(); // Default off for other states for now
+      }
+      
+      // Play state transition sound
+      switch (selectedState) {
+        case State::DISCOVERY: playStateTransitionSound("DISCOVERY"); break;
+        case State::QUIZ: playStateTransitionSound("QUIZ"); break;
+        case State::STORY: playStateTransitionSound("STORY"); break;
+        default: break;
       }
     }
   } else if (digitalRead(BUTTON_PIN) == HIGH) {

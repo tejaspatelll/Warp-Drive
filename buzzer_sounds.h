@@ -106,6 +106,12 @@ void stopBuzzerSound();
 void playUISound_Beep();
 void playUISound_Boop();
 
+// State transition sounds
+void playStateTransitionSound(const char* stateName);
+
+// Discovery object ambient sounds
+void playDiscoveryObjectSound(const char* objectType);
+
 // Menu Background Music (80s sci-fi theme)
 void startMenuBackgroundMusic();
 void stopMenuBackgroundMusic();

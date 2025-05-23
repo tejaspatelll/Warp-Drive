@@ -22,41 +22,221 @@ void initBuzzer() {
   stopBuzzerSound();
 }
 
+// --- RETRO-FUTURISTIC UI SOUND PALETTE ---
+// Using a consistent set of frequencies based on pentatonic and chromatic scales
+// to create a cohesive retro sci-fi aesthetic
+
+void playUISound_Beep() {
+  if (!soundEnabled) return;
+  
+  // Retro-futuristic button press: ascending harmonic
+  tone(BUZZER_PIN, adjustVolume(NOTE_C5), 40);
+  delay(40);
+  tone(BUZZER_PIN, adjustVolume(NOTE_G5), 60);
+  delay(60);
+  noTone(BUZZER_PIN);
+}
+
+void playUISound_Boop() {
+  if (!soundEnabled) return;
+  
+  // Retro-futuristic navigation: quick descending tone
+  tone(BUZZER_PIN, adjustVolume(NOTE_A4), 35);
+  delay(35);
+  tone(BUZZER_PIN, adjustVolume(NOTE_F4), 25);
+  delay(25);
+  noTone(BUZZER_PIN);
+}
+
+// Enhanced state transition sounds
+void playStateTransitionSound(const char* stateName) {
+  if (!soundEnabled) return;
+  
+  if (strcmp(stateName, "MENU") == 0) {
+    // Menu entry: welcoming harmonic sequence
+    int notes[] = {NOTE_C4, NOTE_E4, NOTE_G4, NOTE_C5};
+    int durations[] = {80, 80, 80, 120};
+    for (int i = 0; i < 4; i++) {
+      tone(BUZZER_PIN, adjustVolume(notes[i]), durations[i]);
+      delay(durations[i]);
+    }
+  } else if (strcmp(stateName, "DISCOVERY") == 0) {
+    // Discovery entry: mysterious rising sweep
+    for (int freq = NOTE_C3; freq <= NOTE_C4; freq += 20) {
+      tone(BUZZER_PIN, adjustVolume(freq), 15);
+      delay(15);
+    }
+  } else if (strcmp(stateName, "QUIZ") == 0) {
+    // Quiz entry: intellectual tone sequence
+    int notes[] = {NOTE_F4, NOTE_A4, NOTE_C5, NOTE_F5};
+    int durations[] = {60, 60, 60, 100};
+    for (int i = 0; i < 4; i++) {
+      tone(BUZZER_PIN, adjustVolume(notes[i]), durations[i]);
+      delay(durations[i]);
+    }
+  } else if (strcmp(stateName, "STORY") == 0) {
+    // Story entry: narrative beginning chord
+    int notes[] = {NOTE_D4, NOTE_FS4, NOTE_A4, NOTE_D5};
+    int durations[] = {70, 70, 70, 110};
+    for (int i = 0; i < 4; i++) {
+      tone(BUZZER_PIN, adjustVolume(notes[i]), durations[i]);
+      delay(durations[i]);
+    }
+  }
+  noTone(BUZZER_PIN);
+}
+
+// Discovery object ambient sounds
+void playDiscoveryObjectSound(const char* objectType) {
+  if (!soundEnabled) return;
+  
+  if (strcmp(objectType, "STAR") == 0) {
+    // Star: bright, quick twinkling sound
+    tone(BUZZER_PIN, adjustVolume(NOTE_G5), 100);
+  } else if (strcmp(objectType, "PLANET") == 0) {
+    // Planet: deep, resonant tone
+    tone(BUZZER_PIN, adjustVolume(NOTE_C3), 150);
+  } else if (strcmp(objectType, "BLACK_HOLE") == 0) {
+    // Black hole: ominous low tone
+    tone(BUZZER_PIN, adjustVolume(NOTE_C2), 200);
+  } else if (strcmp(objectType, "NEBULA") == 0) {
+    // Nebula: ethereal mid tone
+    tone(BUZZER_PIN, adjustVolume(NOTE_E4), 180);
+  } else if (strcmp(objectType, "PULSAR") == 0) {
+    // Pulsar: quick pulsing tone
+    tone(BUZZER_PIN, adjustVolume(NOTE_A4), 80);
+  } else if (strcmp(objectType, "SUPERNOVA") == 0) {
+    // Supernova: explosive high tone
+    tone(BUZZER_PIN, adjustVolume(NOTE_C6), 120);
+  } else if (strcmp(objectType, "GALAXY") == 0) {
+    // Galaxy: vast, sweeping tone
+    tone(BUZZER_PIN, adjustVolume(NOTE_G4), 160);
+  } else if (strcmp(objectType, "COMET") == 0) {
+    // Comet: whooshing sound
+    tone(BUZZER_PIN, adjustVolume(NOTE_F4), 120);
+  } else if (strcmp(objectType, "BINARY_STAR") == 0) {
+    // Binary star: dual tone effect
+    tone(BUZZER_PIN, adjustVolume(NOTE_D4), 100);
+  } else if (strcmp(objectType, "SPACE_STATION") == 0) {
+    // Space station: mechanical beep
+    tone(BUZZER_PIN, adjustVolume(NOTE_B4), 90);
+  } else if (strcmp(objectType, "SOLAR_SYSTEM") == 0) {
+    // Solar system: harmonic tone
+    tone(BUZZER_PIN, adjustVolume(NOTE_A3), 140);
+  } else if (strcmp(objectType, "ASTEROID_FIELD") == 0) {
+    // Asteroid field: scattered tone
+    tone(BUZZER_PIN, adjustVolume(NOTE_E3), 110);
+  }
+  // Note: No delay() calls - the tone will automatically stop after the specified duration
+}
+
+// Legacy menu sounds (now redirect to new UI sounds)
 void playMenuNavSound() {
-  // This function is now deprecated, using playUISound_Boop instead
-  // if (soundEnabled) {
-  //   tone(BUZZER_PIN, adjustVolume(NOTE_C4), 30);
-  // }
+  playUISound_Boop();
 }
 
 void playMenuSelectSound() {
-  // This function is now deprecated, using playUISound_Beep instead
-  // if (soundEnabled) {
-  //   tone(BUZZER_PIN, adjustVolume(NOTE_G4), 50);
-  //   delay(50);
-  //   tone(BUZZER_PIN, adjustVolume(NOTE_C5), 80);
-  // }
+  playUISound_Beep();
 }
 
 void stopBuzzerSound() {
   noTone(BUZZER_PIN);
 }
 
-// --- Menu Background Music --- - New Iconic & Catchy Theme
-const int MENU_THEME_LENGTH = 16; // A short, catchy loop
+// --- ENHANCED WARP SOUND EFFECT ---
+void updateWarpSound(float warpFactor) {
+  static unsigned long lastPulseTime = 0;
+  static unsigned long lastSweepTime = 0;
+  static bool toneOn = false;
+  static int sweepDirection = 1;
+  static int currentSweepFreq = NOTE_C4;
+  static int pulsePattern = 0; // For LED synchronization
+  unsigned long now = millis();
+
+  if (!soundEnabled) {
+    noTone(BUZZER_PIN);
+    toneOn = false;
+    return;
+  }
+
+  // If warp is not engaged, stop sound
+  if (warpFactor < 0.05f) {
+    noTone(BUZZER_PIN);
+    toneOn = false;
+    pulsePattern = 0;
+    return;
+  }
+
+  // Enhanced warp sound with better LED synchronization
+  int baseFreq = NOTE_C4 + (NOTE_C6 - NOTE_C4) * warpFactor;
+  
+  // Rhythmic pulse rate that syncs with LED patterns
+  int pulseRate;
+  if (warpFactor < 0.3f) {
+    pulseRate = 200 - 100 * warpFactor; // Slow pulsing (200ms to 170ms)
+  } else if (warpFactor < 0.7f) {
+    pulseRate = 120 - 60 * (warpFactor - 0.3f); // Medium pulsing (120ms to 96ms)
+  } else {
+    pulseRate = 60 - 30 * (warpFactor - 0.7f); // Fast pulsing (60ms to 30ms)
+  }
+  
+  // Add frequency sweep for dynamic effect
+  if (now - lastSweepTime > (150 - 100 * warpFactor)) {
+    lastSweepTime = now;
+    int sweepAmount = 5 + 20 * warpFactor;
+    currentSweepFreq += sweepDirection * sweepAmount;
+    
+    if (currentSweepFreq > baseFreq + 80) sweepDirection = -1;
+    if (currentSweepFreq < baseFreq - 80) sweepDirection = 1;
+  }
+  
+  // Pulse the enhanced tone with LED-sync pattern
+  if (now - lastPulseTime > pulseRate) {
+    lastPulseTime = now;
+    pulsePattern = (pulsePattern + 1) % 4; // 4-beat pattern for LED sync
+    
+    if (!toneOn) {
+      // Add harmonic variations based on pulse pattern
+      int harmonicOffset = 0;
+      switch (pulsePattern) {
+        case 0: harmonicOffset = 0; break;        // Base tone
+        case 1: harmonicOffset = 12; break;      // Octave higher
+        case 2: harmonicOffset = 7; break;       // Fifth higher
+        case 3: harmonicOffset = 4; break;       // Major third higher
+      }
+      
+      int finalFreq = currentSweepFreq + harmonicOffset;
+      
+      // Add intensity-based modulation
+      int modulation = random(-5, 6) * warpFactor;
+      finalFreq += modulation;
+      
+      tone(BUZZER_PIN, adjustVolume(finalFreq));
+      toneOn = true;
+    } else {
+      noTone(BUZZER_PIN);
+      toneOn = false;
+    }
+  }
+}
+
+// --- Menu Background Music --- - Enhanced for retro-futuristic feel
+const int MENU_THEME_LENGTH = 20; // Extended for richer melody
 
 int menuThemeNotes[MENU_THEME_LENGTH] = {
-  NOTE_C5, 0,       NOTE_E5, NOTE_G5, // Upbeat arpeggio start
-  NOTE_A5, NOTE_G5, NOTE_E5, 0,       // Quick melodic phrase
-  NOTE_B4, 0,       NOTE_D5, NOTE_F5, // Contrasting phrase
-  NOTE_G5, NOTE_F5, NOTE_D5, 0        // Resolution and loop point
+  NOTE_C5, 0, NOTE_G4, NOTE_E5,     // Sci-fi opening phrase
+  NOTE_F5, NOTE_E5, NOTE_C5, 0,     // Descending resolution
+  NOTE_A4, 0, NOTE_F4, NOTE_D5,     // Contrasting phrase
+  NOTE_E5, NOTE_D5, NOTE_A4, 0,     // Mirror resolution
+  NOTE_G4, NOTE_C5, NOTE_E5, NOTE_G5 // Ascending finale
 };
 
 int menuThemeDurations[MENU_THEME_LENGTH] = {
-  150, 100, 150, 200, // Staccato and held notes
-  120, 120, 150, 150, // Rhythmic variation
-  150, 100, 150, 200, // Similar to first line
-  120, 120, 150, 250  // Slower end to loop nicely
+  140, 80, 120, 180,   // Rhythmic and spacious
+  100, 100, 140, 120,  // Flowing
+  140, 80, 120, 180,   // Echo pattern
+  100, 100, 140, 120,  // Consistent
+  120, 120, 140, 200   // Grand finish
 };
 
 int currentMenuNote = 0;
@@ -82,69 +262,50 @@ void stopMenuBackgroundMusic() {
 }
 
 void updateMenuBackgroundMusic() {
-  if (!menuMusicPlaying || !soundEnabled) return; // Stop if not playing or sound is off
+  if (!menuMusicPlaying || !soundEnabled) return;
 
   unsigned long currentTime = millis();
   
-  // Check if it's time for the next note
   if (currentTime - lastMenuNoteTime >= menuThemeDurations[currentMenuNote]) {
-    noTone(BUZZER_PIN); // Stop the previous note
+    noTone(BUZZER_PIN);
     
-    currentMenuNote++; // Move to the next note
-
+    currentMenuNote++;
     if (currentMenuNote >= MENU_THEME_LENGTH) {
-      // End of the theme reached, stop music and reset note for next start
-      noTone(BUZZER_PIN); // Stop the last note explicitly
-      menuMusicPlaying = false; // Stop the music playback logic
-      currentMenuNote = 0; // Reset note index for the next time music starts
-      return; // Exit the function as the loop is finished
+      noTone(BUZZER_PIN);
+      menuMusicPlaying = false;
+      currentMenuNote = 0;
+      return;
     }
 
-    lastMenuNoteTime = currentTime; // Update timer for the next note
-
-    // Play the next note in the theme if it's not a rest
-    // Add small random variations to pitch for a less mechanical feel (optional)
-    int pitchVariation = random(-2, 3); // Smaller range for subtle variation
+    lastMenuNoteTime = currentTime;
     
-    // Apply pitch variation and play the note
+    // Add subtle pitch variation for organic feel
+    int pitchVariation = random(-3, 4);
     int finalPitch = menuThemeNotes[currentMenuNote] + pitchVariation;
-    // Ensure pitch doesn't go below a reasonable minimum (e.g., NOTE_C1) to avoid issues
     if (finalPitch < NOTE_C1) finalPitch = NOTE_C1;
     
     if (menuThemeNotes[currentMenuNote] > 0) {
       tone(BUZZER_PIN, adjustVolume(finalPitch));
     } else {
-        noTone(BUZZER_PIN); // Ensure no tone if it's a rest
+      noTone(BUZZER_PIN);
     }
   }
 }
 
-// --- Quiz Mode Sounds ---
-
-// Quiz Question Music - Mysterious, evolving pattern
-const int QUIZ_PATTERN_LENGTH = 71;
+// --- Quiz Mode Sounds - Enhanced for retro-futuristic feel ---
+const int QUIZ_PATTERN_LENGTH = 32; // Shorter, more focused pattern
 int quizQuestionNotes[QUIZ_PATTERN_LENGTH] = {
-  NOTE_C3, 0, NOTE_DS3, 0, NOTE_G3, 0, NOTE_AS3, 0, // Minor, sparse
-  NOTE_C3, 0, NOTE_DS3, 0, NOTE_G3, 0, NOTE_AS3, 0,
-  NOTE_F3, 0, NOTE_AS3, 0, NOTE_DS4, 0, NOTE_G4, 0, // Related chord
-  NOTE_F3, 0, NOTE_AS3, 0, NOTE_DS4, 0, NOTE_G4, 0,
-  NOTE_D3, 0, NOTE_F3, 0, NOTE_A3, 0, NOTE_C4, 0,   // Another related chord
-  NOTE_D3, 0, NOTE_F3, 0, NOTE_A3, 0, NOTE_C4, 0,
-  NOTE_G3, 0, NOTE_AS3, 0, NOTE_D4, 0, NOTE_F4, 0,   // Build tension
-  NOTE_G3, 0, NOTE_AS3, 0, NOTE_D4, 0, NOTE_F4, 0,
-  NOTE_C4, 0, NOTE_GS3, 0, NOTE_E3, 0, NOTE_C3
+  NOTE_F3, 0, NOTE_AS3, 0, NOTE_DS4, 0, NOTE_F4, 0,   // Mystery theme
+  NOTE_E3, 0, NOTE_A3, 0, NOTE_D4, 0, NOTE_E4, 0,     // Variation
+  NOTE_G3, 0, NOTE_C4, 0, NOTE_F4, 0, NOTE_G4, 0,     // Building
+  NOTE_F3, 0, NOTE_AS3, 0, NOTE_DS4, 0, NOTE_F4, 0    // Return
 };
 
 int quizQuestionDurations[QUIZ_PATTERN_LENGTH] = {
-  300, 100, 300, 100, 300, 100, 300, 300,
-  300, 100, 300, 100, 300, 100, 300, 300,
-  250, 100, 250, 100, 250, 100, 250, 400,
-  250, 100, 250, 100, 250, 100, 250, 400,
-  280, 100, 280, 100, 280, 100, 280, 450,
-  280, 100, 280, 100, 280, 100, 280, 450,
-  200, 100, 200, 100, 200, 100, 200, 350,
-  200, 100, 200, 100, 200, 100, 200, 350,
-  400, 150, 400, 150, 400, 150, 600
+  250, 100, 250, 100, 250, 100, 350, 200,
+  250, 100, 250, 100, 250, 100, 350, 200,
+  200, 100, 200, 100, 200, 100, 300, 200,
+  250, 100, 250, 100, 250, 100, 400, 300
 };
 
 int currentQuizNote = 0;
@@ -157,7 +318,9 @@ void startQuizQuestionMusic() {
   currentQuizNote = 0;
   lastQuizNoteTime = millis();
   quizQuestionMusicPlaying = true;
-  tone(BUZZER_PIN, adjustVolume(quizQuestionNotes[currentQuizNote]));
+  if (quizQuestionNotes[currentQuizNote] > 0) {
+    tone(BUZZER_PIN, adjustVolume(quizQuestionNotes[currentQuizNote]));
+  }
 }
 
 void stopQuizQuestionMusic() {
@@ -173,25 +336,27 @@ void updateQuizQuestionMusic() {
     noTone(BUZZER_PIN);
     currentQuizNote = (currentQuizNote + 1) % QUIZ_PATTERN_LENGTH;
     
-    // Add slight variations
-    int pitchVariation = random(-3, 4);
-    tone(BUZZER_PIN, adjustVolume(quizQuestionNotes[currentQuizNote] + pitchVariation));
+    // Subtle variations for organic feel
+    int pitchVariation = random(-2, 3);
+    int finalPitch = quizQuestionNotes[currentQuizNote] + pitchVariation;
+    
+    if (quizQuestionNotes[currentQuizNote] > 0) {
+      tone(BUZZER_PIN, adjustVolume(finalPitch));
+    }
     lastQuizNoteTime = currentTime;
   }
 }
 
-// Helpline Music - More electronic, scanning feel
-const int HELPLINE_PATTERN_LENGTH = 24;
+// Helpline Music - More electronic scanner effect
+const int HELPLINE_PATTERN_LENGTH = 16;
 int helplineNotes[HELPLINE_PATTERN_LENGTH] = {
-  NOTE_G4, NOTE_C5, NOTE_G4, NOTE_C5, NOTE_G4, NOTE_C5, NOTE_G4, NOTE_C5, // Fast high pulse
-  NOTE_F4, NOTE_AS4, NOTE_F4, NOTE_AS4, NOTE_F4, NOTE_AS4, NOTE_F4, NOTE_AS4, // Slightly lower pulse
-  NOTE_E4, NOTE_A4, NOTE_E4, NOTE_A4, NOTE_E4, NOTE_A4, NOTE_E4, NOTE_A4 // Even lower pulse
+  NOTE_G4, NOTE_C5, NOTE_G4, NOTE_C5, NOTE_G4, NOTE_C5, NOTE_G4, NOTE_C5,
+  NOTE_F4, NOTE_AS4, NOTE_F4, NOTE_AS4, NOTE_F4, NOTE_AS4, NOTE_F4, NOTE_AS4
 };
 
 int helplineDurations[HELPLINE_PATTERN_LENGTH] = {
-  100, 100, 100, 100, 100, 100, 100, 200,
-  100, 100, 100, 100, 100, 100, 100, 200,
-  100, 100, 100, 100, 100, 100, 100, 300
+  80, 80, 80, 80, 80, 80, 80, 150,
+  80, 80, 80, 80, 80, 80, 80, 150
 };
 
 int currentHelplineNote = 0;
@@ -224,20 +389,16 @@ void updateQuizHelplineMusic() {
   }
 }
 
-// Popup Music - Gentle, anticipatory theme
-const int POPUP_PATTERN_LENGTH = 32;
+// Popup Music - Anticipatory retro theme
+const int POPUP_PATTERN_LENGTH = 16;
 int popupNotes[POPUP_PATTERN_LENGTH] = {
-  NOTE_E4, 0, NOTE_G4, 0, NOTE_B4, 0, NOTE_C5, 0, // Building arpeggio
-  NOTE_D4, 0, NOTE_F4, 0, NOTE_A4, 0, NOTE_B4, 0, // Another arpeggio
-  NOTE_C4, 0, NOTE_E4, 0, NOTE_G4, 0, NOTE_A4, 0, // Third arpeggio
-  NOTE_B3, 0, NOTE_D4, 0, NOTE_FS4, 0, NOTE_G4, 0  // Resolution hint
+  NOTE_E4, 0, NOTE_G4, 0, NOTE_B4, 0, NOTE_E5, 0,
+  NOTE_D4, 0, NOTE_F4, 0, NOTE_A4, 0, NOTE_D5, 0
 };
 
 int popupDurations[POPUP_PATTERN_LENGTH] = {
-  250, 50, 250, 50, 250, 50, 500,
-  250, 50, 250, 50, 250, 50, 500,
-  250, 50, 250, 50, 250, 50, 500,
-  250, 50, 250, 50, 250, 50, 700
+  200, 50, 200, 50, 200, 50, 400, 100,
+  200, 50, 200, 50, 200, 50, 400, 100
 };
 
 int currentPopupNote = 0;
@@ -250,7 +411,9 @@ void startQuizPopupMusic() {
   currentPopupNote = 0;
   lastPopupNoteTime = millis();
   popupMusicPlaying = true;
-  tone(BUZZER_PIN, adjustVolume(popupNotes[currentPopupNote]));
+  if (popupNotes[currentPopupNote] > 0) {
+    tone(BUZZER_PIN, adjustVolume(popupNotes[currentPopupNote]));
+  }
 }
 
 void stopQuizPopupMusic() {
@@ -265,45 +428,51 @@ void updateQuizPopupMusic() {
   if (currentTime - lastPopupNoteTime >= popupDurations[currentPopupNote]) {
     noTone(BUZZER_PIN);
     currentPopupNote = (currentPopupNote + 1) % POPUP_PATTERN_LENGTH;
-    tone(BUZZER_PIN, adjustVolume(popupNotes[currentPopupNote]));
+    if (popupNotes[currentPopupNote] > 0) {
+      tone(BUZZER_PIN, adjustVolume(popupNotes[currentPopupNote]));
+    }
     lastPopupNoteTime = currentTime;
   }
 }
 
+// Enhanced quiz feedback sounds
 void playQuizCorrectAnswerSound() {
   if (!soundEnabled) return;
   
-  // Triumphant ascending arpeggio with harmony
-  tone(BUZZER_PIN, adjustVolume(NOTE_C4), 100);
-  delay(100);
-  tone(BUZZER_PIN, adjustVolume(NOTE_E4), 100);
-  delay(100);
-  tone(BUZZER_PIN, adjustVolume(NOTE_G4), 100);
-  delay(100);
-  tone(BUZZER_PIN, adjustVolume(NOTE_C5), 200);
-  delay(200);
-  // Final chord
-  tone(BUZZER_PIN, adjustVolume(NOTE_E5), 300);
+  // Triumphant retro success sequence
+  int notes[] = {NOTE_C4, NOTE_E4, NOTE_G4, NOTE_C5, NOTE_E5, NOTE_G5};
+  int durations[] = {80, 80, 80, 100, 100, 200};
+  
+  for (int i = 0; i < 6; i++) {
+    tone(BUZZER_PIN, adjustVolume(notes[i]), durations[i]);
+    delay(durations[i]);
+  }
+  noTone(BUZZER_PIN);
 }
 
 void playQuizWrongAnswerSound() {
   if (!soundEnabled) return;
   
-  // Descending minor second with echo
-  tone(BUZZER_PIN, adjustVolume(NOTE_C4), 200);
-  delay(200);
-  tone(BUZZER_PIN, adjustVolume(NOTE_B3), 300);
-  delay(300);
-  tone(BUZZER_PIN, adjustVolume(NOTE_AS3), 200);
-  delay(200);
+  // Retro error sound: descending chromatic
+  int notes[] = {NOTE_F4, NOTE_E4, NOTE_DS4, NOTE_D4, NOTE_CS4};
+  int durations[] = {100, 100, 100, 100, 200};
+  
+  for (int i = 0; i < 5; i++) {
+    tone(BUZZER_PIN, adjustVolume(notes[i]), durations[i]);
+    delay(durations[i]);
+  }
   noTone(BUZZER_PIN);
 }
 
 void playQuizOptionHighlightSound() {
   if (!soundEnabled) return;
   
-  // Quick electronic blip
-  tone(BUZZER_PIN, adjustVolume(NOTE_G4), 30);
+  // Quick retro blip with harmonic
+  tone(BUZZER_PIN, adjustVolume(NOTE_A4), 25);
+  delay(25);
+  tone(BUZZER_PIN, adjustVolume(NOTE_E5), 15);
+  delay(15);
+  noTone(BUZZER_PIN);
 }
 
 void updateAllSoundStates() {
@@ -319,73 +488,4 @@ void stopAllSounds() {
   helplineMusicPlaying = false;
   popupMusicPlaying = false;
   stopBuzzerSound();
-}
-
-// --- Warp Sound Effect ---
-void updateWarpSound(float warpFactor) {
-  static unsigned long lastPulseTime = 0;
-  static bool toneOn = false;
-  unsigned long now = millis();
-
-  if (!soundEnabled) {
-    noTone(BUZZER_PIN);
-    toneOn = false;
-    return;
-  }
-
-  // If warp is not engaged, stop sound
-  if (warpFactor < 0.05f) {
-    noTone(BUZZER_PIN);
-    toneOn = false;
-    return;
-  }
-
-  // Map warpFactor to frequency and pulse rate
-  int minFreq = NOTE_C4; // Minimum frequency
-  int maxFreq = NOTE_C6; // Maximum frequency
-  int freq = minFreq + (maxFreq - minFreq) * warpFactor;
-
-  // Add slight randomness to frequency for a more dynamic sound
-  int pitchVariation = random(-5, 6); // Random variation for a richer sound
-  freq += pitchVariation;
-
-  // Ensure frequency stays within bounds
-  if (freq < minFreq) freq = minFreq;
-  if (freq > maxFreq) freq = maxFreq;
-
-  int minPulse = 120; // ms
-  int maxPulse = 30;  // ms
-  int pulse = minPulse - (minPulse - maxPulse) * warpFactor;
-  if (pulse < maxPulse) pulse = maxPulse;
-
-  // Pulse the tone for a choppy engine effect
-  if (now - lastPulseTime > pulse) {
-    lastPulseTime = now;
-    if (!toneOn) {
-      tone(BUZZER_PIN, freq);
-      toneOn = true;
-    } else {
-      noTone(BUZZER_PIN);
-      toneOn = false;
-    }
-  }
-}
-
-// New UI Sounds Implementation
-void playUISound_Beep() {
-  if (soundEnabled) {
-    // A simple, slightly higher pitch tone for button presses
-    tone(BUZZER_PIN, adjustVolume(NOTE_G5), 50); // Using G5
-    delay(50); // Keep buzzer active for the tone duration
-    noTone(BUZZER_PIN); // Ensure tone stops after playing
-  }
-}
-
-void playUISound_Boop() {
-  if (soundEnabled) {
-    // A slightly lower pitch tone for navigation/highlighting
-    tone(BUZZER_PIN, adjustVolume(NOTE_E4), 40); // Using E4
-    delay(40); // Keep buzzer active for the tone duration
-    noTone(BUZZER_PIN); // Ensure tone stops after playing
-  }
 } 
