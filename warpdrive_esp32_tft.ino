@@ -105,8 +105,8 @@ const unsigned long QUIZ_HELPLINE_DEBOUNCE = 300; // ms debounce for quiz helpli
 bool soundSettingsPopupActive = false;
 
 // Change the TFT_LED pin definition
-#define TFT_LED 19  
-#define VIBRATION_PIN -1  // Vibration motor pin
+#define TFT_LED 8  
+#define VIBRATION_PIN 4  // Vibration motor pin
 
 // Haptic feedback levels
 enum class HapticLevel {
@@ -245,8 +245,22 @@ void hapticFeedback(float warpFactor) {
   static int substate = 0; // For turbulence/double-pulse
   unsigned long now = millis();
 
-  // If warpFactor is very low, turn off vibration
-  if (warpFactor < 0.02f) {
+  // --- Haptic Feedback Logic (Non-Blocking) ---
+  // This function is designed to be called frequently in the main loop.
+  // It uses state variables and time checks (millis()) to manage the vibration
+  // motor pattern without blocking the main program loop.
+
+  // Determine target vibration intensity (0.0 to 1.0) based on warp factor or override
+  float targetIntensity;
+  if (hapticOverrideActive && now < hapticOverrideEndTime) {
+    targetIntensity = constrain(hapticOverrideValue, 0.0f, 1.0f);
+  } else {
+    // Use smoothed warp factor for main haptic intensity
+    targetIntensity = constrain(warpFactor, 0.0f, 1.0f);
+  }
+
+  // If target intensity is very low, ensure vibration is off
+  if (targetIntensity < 0.05f) { // Use a small threshold
     digitalWrite(VIBRATION_PIN, LOW);
     pulseState = false;
     substate = 0;
@@ -974,7 +988,7 @@ void processInput() {
       
       // Do one final check for any lingering sprites
       // cleanupAllCelestialObjectSprites(); // This is now called inside eraseCelestialObject potentially, or needs adjustment
-      // Let's rely on eraseCelestialObject to handle its specific sprite.
+      // Let's rely on eraseCelestialObject to handle its own sprite.
       // A broader cleanup might be needed if eraseCelestialObject doesn't cover everything.
       // For now, assume eraseCelestialObject handles its own sprite.
       
@@ -1851,6 +1865,10 @@ void powerOff() {
   
   // Turn off display
   digitalWrite(TFT_LED, LOW);
+  
+  // Turn off LEDs
+  fill_solid(leds, NUM_LEDS, CRGB::Black);
+  FastLED.show();
   
   // Configure wake-up source
   esp_sleep_enable_ext0_wakeup(static_cast<gpio_num_t>(BUTTON_PIN), LOW);

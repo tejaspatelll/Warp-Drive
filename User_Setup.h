@@ -224,11 +224,11 @@
 
 #define USE_HSPI_PORT // Add this line
 
-#define TFT_CS 9 // ----------------------for esp32s3 spi setup
+#define TFT_CS 9 // 9----------------------for esp32s3 spi setup
 #define TFT_RST 11
 #define TFT_DC 10
-#define TFT_MOSI 12
-#define TFT_SCLK 13
+#define TFT_MOSI 12 //12
+#define TFT_SCLK 13 //
 //#define TFT_RST  -1  // Set TFT_RST to -1 if display RESET is connected to ESP32 board RST
 
 // For ESP32 Dev board (only tested with GC9A01 display)
