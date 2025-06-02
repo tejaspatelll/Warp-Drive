@@ -1,18 +1,18 @@
 # Warp Drive System Architecture
 
 ## 1. Project Overview
-This project is an ESP32—based “warp drive” visualization on a ST7735 128×128 TFT.  
-Users twist a potentiometer to engage a smooth Star—Trek—style warp effect, then slow down to randomly “discover” and animate a variety of celestial objects.  
+This project is an ESP32—based "warp drive" visualization on a 240x320 TFT.  
+Users twist a potentiometer to engage a smooth Star—Trek—style warp effect, then slow down to randomly "discover" and animate a variety of celestial objects.  
 Two interactive modes—**Quiz** and **Story**—sit alongside the core Discovery experience.
 
 ## 2. Hardware & Setup
 - **Microcontroller:** ESP32 (NodeMCU, Wemos D1, etc.)  
 - **Display:** ST7735 TFT (128×128 px) with TFT_eSPI library  
 - **Controls:**  
-  - **Potentiometer (POT_PIN):** GPIO 35 (ADC1_CHANNEL_7)  
-  - **Button (BUTTON_PIN):** GPIO 15 (short press = menu nav; long press = deep sleep)  
+  - **Potentiometer (POT_PIN):** GPIO 35 (ADC1_CHANNEL_7)  
+  - **Button (BUTTON_PIN):** GPIO 15 (short press = menu nav; long press = deep sleep)  
 - **Power:**  
-  - LED backlight on GPIO 19  
+  - LED backlight on GPIO 19  
   - Deep—sleep support via `<esp_sleep.h>` / `rtc_io.h`  
 - **User Settings:** All pin—defs, orientation, and calibration live in `User_Setup.h`.
 
@@ -28,12 +28,26 @@ Two interactive modes—**Quiz** and **Story**—sit alongside the core Discover
 
 ### 3.2 Celestial Objects
 Each type lives in its own header with draw/init routines, invoked by `drawCelestialObject()` in `warpdrive_esp8266_tft.ino`:
-- **`blackhole.h`** – gravity well animation  
-- **`pulsar.h`** – rotating beam pulses  
-- **`supernova.h`** – expanding explosion effect  
-- **`comet.h`** – streaking comet with fading tail  
+- **star.h:** Simple twinkling star
+- **planet.h:** Rocky planet with surface texture
+- **nebula.h:** Colorful gas cloud with particles
+- **galaxy.h:** Spiral galaxy with arms and central core
+- **solar_system.h:** Multiple planets orbiting a central star
+- **galaxy_and_asteroid.h:** Galaxy view and asteroid field
+- **blackhole.h:** Event horizon, accretion disk, gravitational lensing
+- **pulsar.h:** Rotating neutron star with beam emissions
+- **supernova.h:** Stellar explosion with expanding shockwave
+- **comet.h:** Icy body with glowing tail
+- **binarystar.h:** Two stars orbiting each other
+- **spacestation.h:** Artificial structure with modules and arrays
+- **jewel_box.h:** Colorful open star cluster (new)
+- **omega_centauri.h:** Massive globular cluster with dense star formation (new)
+- **orion_nebula.h:** Star-forming nebula with Trapezium stars and gas clouds (new)
+- **pleiades.h:** Seven Sisters open cluster with reflection nebula (new)
+- **ring_nebula.h:** Planetary nebula with central white dwarf (new)
+- **double_cluster.h:** Twin open star clusters in Perseus (new)
 
-Plus built—in types from `discovery.h`: stars, planets, nebulae, galaxies, solar systems, asteroid fields, binary stars, space stations.
+The system now includes **19 different celestial objects** ranging from individual stars to entire galaxies, each with unique visual characteristics and educational content.
 
 ### 3.3 Interaction Modes
 - **Discovery Mode** (`State::DISCOVERY`)  
@@ -43,6 +57,18 @@ Plus built—in types from `discovery.h`: stars, planets, nebulae, galaxies, sol
   - Pop—up feedback for correct/incorrect answers.
 - **Story Mode** (`story_mode.h`)  
   - Guided narrative with step—by—step prompts, pot—driven navigation back and forth.
+
+### 3.4 Buzzer Sounds
+- **`buzzer_sounds.h` / `buzzer_sounds.cpp`**
+  - Contains functions for generating various sound effects via the buzzer.
+
+### 3.5 LED Animations
+- **`led_animations.h` / `led_animations.cpp`**
+  - Implements visual effects and patterns for connected LEDs.
+
+### 3.6 Sprite Manager
+- **`sprite_manager.h` / `sprite_manager.cpp`**
+  - Handles loading, updating, and drawing graphical sprites on the display.
 
 ## 4. Initialization (`initializeSystem()`)
 1. Seed random, configure TFT, load colors (`initColors()`).  
@@ -82,7 +108,7 @@ Plus built—in types from `discovery.h`: stars, planets, nebulae, galaxies, sol
 - Button returns to MENU.
 
 ## 10. Performance Optimizations
-- **Frame—rate tuning:** up to 30 FPS in warp, lower in discovery.  
+- **Frame—rate tuning:** up to 30 FPS in warp, lower in discovery.  
 - **Partial redraws:** erase only old primitives by tracking previous positions.  
 - **Staggered updates:** spread heavy draw calls across frames.
 

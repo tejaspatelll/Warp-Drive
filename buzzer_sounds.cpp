@@ -126,6 +126,24 @@ void playDiscoveryObjectSound(const char* objectType) {
   } else if (strcmp(objectType, "ASTEROID_FIELD") == 0) {
     // Asteroid field: scattered tone
     tone(BUZZER_PIN, adjustVolume(NOTE_E3), 110);
+  } else if (strcmp(objectType, "JEWEL_BOX") == 0) {
+    // Jewel Box Cluster: multi-colored sparkle sound
+    tone(BUZZER_PIN, adjustVolume(NOTE_B5), 130);
+  } else if (strcmp(objectType, "OMEGA_CENTAURI") == 0) {
+    // Omega Centauri: simple beep (non-blocking)
+    tone(BUZZER_PIN, adjustVolume(NOTE_A4), 150);
+  } else if (strcmp(objectType, "ORION_NEBULA") == 0) {
+    // Orion Nebula: swirling gas cloud sound
+    tone(BUZZER_PIN, adjustVolume(NOTE_F4), 180);
+  } else if (strcmp(objectType, "PLEIADES") == 0) {
+    // Pleiades: young hot stars sound
+    tone(BUZZER_PIN, adjustVolume(NOTE_C5), 140);
+  } else if (strcmp(objectType, "RING_NEBULA") == 0) {
+    // Ring Nebula: expanding ring sound
+    tone(BUZZER_PIN, adjustVolume(NOTE_G4), 160);
+  } else if (strcmp(objectType, "DOUBLE_CLUSTER") == 0) {
+    // Double Cluster: twin cluster harmony
+    tone(BUZZER_PIN, adjustVolume(NOTE_E4), 150);
   }
   // Note: No delay() calls - the tone will automatically stop after the specified duration
 }

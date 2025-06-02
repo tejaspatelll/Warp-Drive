@@ -63,6 +63,12 @@
 #include "nebula.h" // Add nebula header
 #include "solar_system.h" // Add solar system header
 #include "galaxy_and_asteroid.h" // Add galaxy and asteroid field header
+#include "jewel_box.h" // Add Jewel Box Cluster header
+#include "omega_centauri.h" // Add Omega Centauri header
+#include "orion_nebula.h" // Add Orion Nebula header
+#include "pleiades.h" // Add Pleiades header
+#include "ring_nebula.h" // Add Ring Nebula header
+#include "double_cluster.h" // Add Double Cluster header
 #include "sprite_manager.h" // Ensure SpriteManager is included for safeDeleteSprite
 #include <algorithm> // Add at the top with other includes
 #include <FastLED.h> // Added for LED animations
@@ -105,7 +111,7 @@ const unsigned long QUIZ_HELPLINE_DEBOUNCE = 300; // ms debounce for quiz helpli
 bool soundSettingsPopupActive = false;
 
 // Change the TFT_LED pin definition
-#define TFT_LED 8  
+#define TFT_LED 13  
 #define VIBRATION_PIN 4  // Vibration motor pin
 
 // Haptic feedback levels
@@ -341,6 +347,12 @@ enum class CelestialObject {
   COMET,     // Added Comet
   BINARY_STAR, // Added Binary Star System
   SPACE_STATION, // Added Space Station
+  JEWEL_BOX, // Added Jewel Box Cluster
+  OMEGA_CENTAURI, // Added Omega Centauri
+  ORION_NEBULA, // Added Orion Nebula
+  PLEIADES, // Added Pleiades
+  RING_NEBULA, // Added Ring Nebula
+  DOUBLE_CLUSTER, // Added Double Cluster
   NUM_TYPES  // Keep this last
 };
 CelestialObject currentObject;
@@ -410,6 +422,8 @@ int g_boxWidth = 0;
 int g_boxHeight = 0;
 int g_menuTextSize = 0;
 int g_charWidth = 0;
+
+float stellarWindPhase = 0.0f; // Define stellarWindPhase globally
 
 // Pulsar global variable definition
 float prevAngle = 0.0f;
@@ -801,6 +815,24 @@ void loop() {
                 case CelestialObject::SPACE_STATION:
                     setLedModeDiscovery("Space Station");
                     break;
+                case CelestialObject::JEWEL_BOX:
+                    setLedModeDiscovery("Jewel Box");
+                    break;
+                case CelestialObject::OMEGA_CENTAURI:
+                    setLedModeDiscovery("Omega Centauri");
+                    break;
+                case CelestialObject::ORION_NEBULA:
+                    setLedModeDiscovery("Orion Nebula");
+                    break;
+                case CelestialObject::PLEIADES:
+                    setLedModeDiscovery("Pleiades");
+                    break;
+                case CelestialObject::RING_NEBULA:
+                    setLedModeDiscovery("Ring Nebula");
+                    break;
+                case CelestialObject::DOUBLE_CLUSTER:
+                    setLedModeDiscovery("Double Cluster");
+                    break;
                 default:
                     setLedModeDiscovery("");
                     break;
@@ -834,6 +866,12 @@ void loop() {
                   case CelestialObject::COMET: factText = "Comets are icy bodies that develop glowing tails of gas and dust when heated by the Sun."; break;
                   case CelestialObject::BINARY_STAR: factText = "Binary stars orbit each other; close pairs can exchange material in dramatic outbursts."; break;
                   case CelestialObject::SPACE_STATION: factText = "Space stations like the ISS let humans live in microgravity to advance science and tech."; break;
+                  case CelestialObject::JEWEL_BOX: factText = "The Jewel Box Cluster displays a stunning variety of colored stars in a compact open cluster."; break;
+                  case CelestialObject::OMEGA_CENTAURI: factText = "Omega Centauri is the largest globular cluster in our galaxy with millions of ancient stars."; break;
+                  case CelestialObject::ORION_NEBULA: factText = "The Orion Nebula (M42) is one of the brightest nebulae visible to the naked eye."; break;
+                  case CelestialObject::PLEIADES: factText = "The Pleiades (Seven Sisters) is a beautiful open star cluster with hot blue stars."; break;
+                  case CelestialObject::RING_NEBULA: factText = "The Ring Nebula (M57) is a planetary nebula with a distinctive donut/ring shape."; break;
+                  case CelestialObject::DOUBLE_CLUSTER: factText = "The Double Cluster (NGC 869/884) is two open clusters close together in Perseus."; break;
                   default: factText = ""; break;
                 }
               }
@@ -1116,8 +1154,12 @@ void processInput() {
         case CelestialObject::COMET: playDiscoveryObjectSound("COMET"); break;
         case CelestialObject::BINARY_STAR: playDiscoveryObjectSound("BINARY_STAR"); break;
         case CelestialObject::SPACE_STATION: playDiscoveryObjectSound("SPACE_STATION"); break;
-        case CelestialObject::SOLAR_SYSTEM: playDiscoveryObjectSound("SOLAR_SYSTEM"); break;
-        case CelestialObject::ASTEROID_FIELD: playDiscoveryObjectSound("ASTEROID_FIELD"); break;
+        case CelestialObject::JEWEL_BOX: playDiscoveryObjectSound("JEWEL_BOX"); break;
+        case CelestialObject::OMEGA_CENTAURI: playDiscoveryObjectSound("OMEGA_CENTAURI"); break;
+        case CelestialObject::ORION_NEBULA: playDiscoveryObjectSound("ORION_NEBULA"); break;
+        case CelestialObject::PLEIADES: playDiscoveryObjectSound("PLEIADES"); break;
+        case CelestialObject::RING_NEBULA: playDiscoveryObjectSound("RING_NEBULA"); break;
+        case CelestialObject::DOUBLE_CLUSTER: playDiscoveryObjectSound("DOUBLE_CLUSTER"); break;
         default: break;
       }
       discoveryObjectSoundPlayed = true; // Mark sound as played
@@ -1536,6 +1578,30 @@ void drawCelestialObject() {
       drawSpaceStation();
       displayObjectName("SPACE STATION");
       break;
+    case CelestialObject::JEWEL_BOX:
+      drawJewelBox();
+      displayObjectName("JEWEL BOX");
+      break;
+    case CelestialObject::OMEGA_CENTAURI:
+      drawOmegaCentauri();
+      displayObjectName("OMEGA CENTAURI");
+      break;
+    case CelestialObject::ORION_NEBULA:
+      drawOrion();
+      displayObjectName("ORION NEBULA");
+      break;
+    case CelestialObject::PLEIADES:
+      drawPleiades();
+      displayObjectName("PLEIADES");
+      break;
+    case CelestialObject::RING_NEBULA:
+      drawRing();
+      displayObjectName("RING NEBULA");
+      break;
+    case CelestialObject::DOUBLE_CLUSTER:
+      drawDoubleCluster();
+      displayObjectName("DOUBLE CLUSTER");
+      break;
     default:
       break;
   }
@@ -1585,6 +1651,24 @@ void eraseCelestialObject() {
       break;
     case CelestialObject::SPACE_STATION:
       eraseSpaceStation();
+      break;
+    case CelestialObject::JEWEL_BOX:
+      eraseJewelBox();
+      break;
+    case CelestialObject::OMEGA_CENTAURI:
+      eraseOmegaCentauri();
+      break;
+    case CelestialObject::ORION_NEBULA:
+      eraseOrion();
+      break;
+    case CelestialObject::PLEIADES:
+      erasePleiades();
+      break;
+    case CelestialObject::RING_NEBULA:
+      eraseRing();
+      break;
+    case CelestialObject::DOUBLE_CLUSTER:
+      eraseDoubleCluster();
       break;
   }
 }
@@ -2527,6 +2611,24 @@ void showFactForCurrentObject() {
       break;
     case CelestialObject::SPACE_STATION:
       fact = "Space stations are artificial satellites for humans to live and work in space.";
+      break;
+    case CelestialObject::JEWEL_BOX:
+      fact = "The Jewel Box Cluster is a beautiful open cluster with stars of varying colors.";
+      break;
+    case CelestialObject::OMEGA_CENTAURI:
+      fact = "Omega Centauri is the largest and brightest globular cluster in the Milky Way.";
+      break;
+    case CelestialObject::ORION_NEBULA:
+      fact = "The Orion Nebula (M42) is one of the brightest nebulae visible to the naked eye.";
+      break;
+    case CelestialObject::PLEIADES:
+      fact = "The Pleiades (Seven Sisters) is a beautiful open star cluster with hot blue stars.";
+      break;
+    case CelestialObject::RING_NEBULA:
+      fact = "The Ring Nebula (M57) is a planetary nebula with a distinctive donut/ring shape.";
+      break;
+    case CelestialObject::DOUBLE_CLUSTER:
+      fact = "The Double Cluster (NGC 869/884) is two open clusters close together in Perseus.";
       break;
     default:
       fact = "";

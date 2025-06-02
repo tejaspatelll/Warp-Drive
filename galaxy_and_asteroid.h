@@ -199,7 +199,7 @@ void drawGalaxy() {
       float rotation = distanceSquared * rotationFactor;
       
       // Calculate final angle with time-based variation
-      float angle = arm * armSeparationDistance + squaredArmOffset + rotation + globalRotation;
+      float angle = arm * armSeparationDistance + squaredArmOffset + rotation;
       
       // Convert to cartesian coordinates
       float radius = galaxyScaleFactor * distance;

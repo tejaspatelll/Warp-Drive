@@ -37,6 +37,12 @@ enum class CelestialObjectType {
     COMET,
     BINARY_STAR,
     SPACE_STATION,
+    JEWEL_BOX,
+    OMEGA_CENTAURI,
+    ORION_NEBULA,
+    PLEIADES,
+    RING_NEBULA,
+    DOUBLE_CLUSTER,
     NONE
 };
 
@@ -173,6 +179,18 @@ void setLedModeDiscovery(const char* objectName) {
         newObject = CelestialObjectType::BINARY_STAR;
     } else if (strstr(objectName, "Space Station")) {
         newObject = CelestialObjectType::SPACE_STATION;
+    } else if (strstr(objectName, "Jewel Box")) {
+        newObject = CelestialObjectType::JEWEL_BOX;
+    } else if (strstr(objectName, "Omega Centauri")) {
+        newObject = CelestialObjectType::OMEGA_CENTAURI;
+    } else if (strstr(objectName, "Orion Nebula")) {
+        newObject = CelestialObjectType::ORION_NEBULA;
+    } else if (strstr(objectName, "Pleiades")) {
+        newObject = CelestialObjectType::PLEIADES;
+    } else if (strstr(objectName, "Ring Nebula")) {
+        newObject = CelestialObjectType::RING_NEBULA;
+    } else if (strstr(objectName, "Double Cluster")) {
+        newObject = CelestialObjectType::DOUBLE_CLUSTER;
     }
 
     // Only reset animation state when entering discovery or switching to a different object
@@ -482,6 +500,105 @@ void _updateDiscoveryEffect() {
                  leds[1] = CRGB(0, 80, 200); // Blue indicator
             } else {
                  leds[1] = CRGB(0, 20, 50); // Dim blue
+            }
+            break;
+        }
+        case CelestialObjectType::JEWEL_BOX: {
+            // Multi-colored sparkle effect for the colorful star cluster
+            float sparklePhase = phase * 3.0f; // Faster sparkle rate
+            uint8_t hue1 = (uint8_t)(sparklePhase * 40) % 255; // Cycling hue for variety
+            uint8_t hue2 = (hue1 + 120) % 255; // Complementary color
+            uint8_t brightness1 = 100 + (sin(sparklePhase) + 1.0f) / 2.0f * 155;
+            uint8_t brightness2 = 100 + (sin(sparklePhase + PI/2) + 1.0f) / 2.0f * 155;
+            
+            leds[0] = CHSV(hue1, 255, brightness1);
+            leds[1] = CHSV(hue2, 255, brightness2);
+            
+            // Random sparkles for extra effect
+            if (random8() < 30) {
+                leds[random8() % NUM_LEDS] = CRGB::White;
+            }
+            break;
+        }
+        case CelestialObjectType::OMEGA_CENTAURI: {
+            // Dense cluster with orbital motion effect
+            float orbitPhase = phase * 2.0f; // Faster orbit for cluster effect
+            uint8_t hue = 40 + (sin(orbitPhase) + 1.0f) / 2.0f * 30; // Yellow-white range
+            uint8_t brightness = 150 + (sin(orbitPhase + PI/3) + 1.0f) / 2.0f * 105;
+            
+            leds[0] = CHSV(hue, 150, brightness);
+            leds[1] = CHSV(hue + 20, 150, brightness * 0.8f);
+            
+            // Dense cluster sparkle effect
+            if (random8() < 50) {
+                leds[random8() % NUM_LEDS] = CRGB::White;
+            }
+            break;
+        }
+        case CelestialObjectType::ORION_NEBULA: {
+            // Nebula with gas cloud effect (pinkish-red with blue)
+            float gasPhase = phase * 1.5f; // Swirling gas motion
+            uint8_t hue1 = 350 + (sin(gasPhase) + 1.0f) / 2.0f * 20; // Red-pink H-alpha
+            uint8_t hue2 = 160 + (sin(gasPhase + PI/3) + 1.0f) / 2.0f * 40; // Blue-green OIII
+            uint8_t brightness1 = 100 + (sin(gasPhase) + 1.0f) / 2.0f * 155;
+            uint8_t brightness2 = 80 + (sin(gasPhase + PI) + 1.0f) / 2.0f * 120;
+            
+            leds[0] = CHSV(hue1, 255, brightness1);
+            leds[1] = CHSV(hue2, 255, brightness2);
+            
+            // Random gas wisps
+            if (random8() < 30) {
+                leds[random8() % NUM_LEDS] = CHSV(hue1, 200, 150);
+            }
+            break;
+        }
+        case CelestialObjectType::PLEIADES: {
+            // Seven Sisters with blue reflection nebula
+            float sistersPhase = phase * 2.5f; // Faster twinkle for young hot stars
+            uint8_t hue = 160 + (sin(sistersPhase) + 1.0f) / 2.0f * 40; // Blue range
+            uint8_t brightness1 = 180 + (sin(sistersPhase) + 1.0f) / 2.0f * 75;
+            uint8_t brightness2 = 120 + (sin(sistersPhase + PI/4) + 1.0f) / 2.0f * 100;
+            
+            leds[0] = CHSV(hue, 255, brightness1); // Bright blue stars
+            leds[1] = CHSV(hue + 20, 200, brightness2); // Reflection nebula
+            
+            // Occasional bright flashes for the sisters
+            if (random8() < 20) {
+                leds[random8() % NUM_LEDS] = CRGB::DeepSkyBlue;
+            }
+            break;
+        }
+        case CelestialObjectType::RING_NEBULA: {
+            // Ring structure with central white dwarf
+            float ringPhase = phase * 1.8f; // Pulsing ring expansion
+            uint8_t innerHue = 120 + (sin(ringPhase) + 1.0f) / 2.0f * 40; // Green-blue center
+            uint8_t outerHue = 0 + (sin(ringPhase + PI) + 1.0f) / 2.0f * 30; // Red outer edge
+            uint8_t brightness = 120 + (sin(ringPhase) + 1.0f) / 2.0f * 135;
+            
+            leds[0] = CHSV(innerHue, 255, brightness);
+            leds[1] = CHSV(outerHue, 255, brightness * 0.7f);
+            
+            // Central white dwarf pulse
+            if (random8() < 15) {
+                leds[0] = CRGB::White;
+            }
+            break;
+        }
+        case CelestialObjectType::DOUBLE_CLUSTER: {
+            // Two cluster effect with blue-white stars
+            float clusterPhase = phase * 2.2f; // Distinct twinkling for each cluster
+            uint8_t hue1 = 160 + (sin(clusterPhase) + 1.0f) / 2.0f * 30; // First cluster (NGC 869)
+            uint8_t hue2 = 40 + (sin(clusterPhase + PI) + 1.0f) / 2.0f * 60; // Second cluster (NGC 884)
+            uint8_t brightness1 = 150 + (sin(clusterPhase) + 1.0f) / 2.0f * 105;
+            uint8_t brightness2 = 140 + (sin(clusterPhase + PI/3) + 1.0f) / 2.0f * 115;
+            
+            leds[0] = CHSV(hue1, 200, brightness1); // Blue cluster
+            leds[1] = CHSV(hue2, 180, brightness2); // Yellow-white cluster
+            
+            // Alternating bright stars in each cluster
+            if (random8() < 25) {
+                uint8_t led = random8() % NUM_LEDS;
+                leds[led] = (led % 2 == 0) ? CRGB::DeepSkyBlue : CRGB::LightYellow;
             }
             break;
         }

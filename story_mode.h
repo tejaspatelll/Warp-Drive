@@ -38,6 +38,12 @@ extern void drawSupernova();
 extern void drawComet();
 extern void drawBinaryStar();
 extern void drawSpaceStation();
+extern void drawJewelBox(); // Add Jewel Box Cluster function
+extern void drawOmegaCentauri(); // Add Omega Centauri function
+extern void drawOrion(); // Add Orion Nebula function
+extern void drawPleiades(); // Add Pleiades function
+extern void drawRing(); // Add Ring Nebula function
+extern void drawDoubleCluster(); // Add Double Cluster function
 extern void updateStars(); // For background star twinkling
 extern void updateWarpStars(); // For warp effect
 
@@ -137,6 +143,42 @@ const StoryStop STORY_STOPS_DATA[] = {
         "Our journey ends with a view of entire galaxies - vast islands of stars floating in the cosmic ocean. Our own Milky Way contains hundreds of billions of stars, and the universe holds trillions of galaxies, each with its own collection of stars, planets, and wonders. When we gaze at these distant star cities, we glimpse the true scale and beauty of our universe.",
         "Scientists estimate there are over 2 trillion galaxies in the observable universe.",
         drawGalaxy
+    },
+    {
+        "Jewel Box Cluster", 
+        "In the southern sky shines one of the most beautiful star clusters visible to the human eye. The Jewel Box Cluster displays a stunning array of colored stars - brilliant blues, warm yellows, and fiery oranges - all nestled together like gems in a cosmic jewelry box. This young open cluster shows us how stars of different masses and temperatures can create a dazzling celestial display.",
+        "The Jewel Box Cluster contains some of the most massive and luminous stars known, shining with the power of hundreds of thousands of suns.",
+        drawJewelBox
+    },
+    {
+        "Omega Centauri", 
+        "Now we encounter the crown jewel of globular clusters - Omega Centauri. This magnificent sphere contains millions of ancient stars, all bound together by gravity in a cosmic ballet that has danced for over 12 billion years. It's the largest and brightest globular cluster visible from Earth, a remnant from our galaxy's earliest days.",
+        "Omega Centauri contains about 10 million stars and is over 12 billion years old.",
+        drawOmegaCentauri
+    },
+    {
+        "Orion Nebula", 
+        "We now enter one of the most active star-forming regions in our local neighborhood - the Orion Nebula. This stellar nursery glows with the light of hot young stars, their radiation illuminating the surrounding gas and dust. At its heart, the Trapezium cluster of four bright blue stars powers this cosmic light show.",
+        "The Orion Nebula is about 1,344 light-years away and is visible to the naked eye.",
+        drawOrion
+    },
+    {
+        "Pleiades", 
+        "Here we find the Seven Sisters - the Pleiades star cluster. These hot blue stars are cosmic teenagers, only about 100 million years old. They're surrounded by wispy reflection nebulae that glow blue from the starlight reflecting off cosmic dust. This cluster has inspired myths and legends in cultures around the world.",
+        "The Pleiades contains over 1,000 stars and is about 444 light-years from Earth.",
+        drawPleiades
+    },
+    {
+        "Ring Nebula", 
+        "Our path leads us to witness the fate of a star like our Sun - the Ring Nebula. This planetary nebula formed when a dying star expelled its outer layers, creating this cosmic donut of glowing gas. At its center sits a white dwarf, the hot dense core of the original star, slowly cooling over billions of years.",
+        "The Ring Nebula is about 2,000 light-years away and was formed about 20,000 years ago.",
+        drawRing
+    },
+    {
+        "Double Cluster", 
+        "We approach a spectacular sight - the Double Cluster in Perseus. Two distinct star clusters, NGC 869 and NGC 884, appear to dance together in space. These young, hot star clusters contain hundreds of brilliant blue and white stars, creating one of the most beautiful deep-sky objects visible from Earth.",
+        "The Double Cluster contains over 700 stars and is about 7,500 light-years away.",
+        drawDoubleCluster
     }
 };
 
@@ -335,6 +377,42 @@ const StoryStop StoryMode::storyStopsList[] = {
         "Our journey ends with a view of entire galaxies - vast islands of stars floating in the cosmic ocean. Our own Milky Way contains hundreds of billions of stars, and the universe holds trillions of galaxies, each with its own collection of stars, planets, and wonders. When we gaze at these distant star cities, we glimpse the true scale and beauty of our universe.",
         "Scientists estimate there are over 2 trillion galaxies in the observable universe.",
         drawGalaxy
+    },
+    {
+        "Jewel Box Cluster", 
+        "In the southern sky shines one of the most beautiful star clusters visible to the human eye. The Jewel Box Cluster displays a stunning array of colored stars - brilliant blues, warm yellows, and fiery oranges - all nestled together like gems in a cosmic jewelry box. This young open cluster shows us how stars of different masses and temperatures can create a dazzling celestial display.",
+        "The Jewel Box Cluster contains some of the most massive and luminous stars known, shining with the power of hundreds of thousands of suns.",
+        drawJewelBox
+    },
+    {
+        "Omega Centauri", 
+        "Now we encounter the crown jewel of globular clusters - Omega Centauri. This magnificent sphere contains millions of ancient stars, all bound together by gravity in a cosmic ballet that has danced for over 12 billion years. It's the largest and brightest globular cluster visible from Earth, a remnant from our galaxy's earliest days.",
+        "Omega Centauri contains about 10 million stars and is over 12 billion years old.",
+        drawOmegaCentauri
+    },
+    {
+        "Orion Nebula", 
+        "We now enter one of the most active star-forming regions in our local neighborhood - the Orion Nebula. This stellar nursery glows with the light of hot young stars, their radiation illuminating the surrounding gas and dust. At its heart, the Trapezium cluster of four bright blue stars powers this cosmic light show.",
+        "The Orion Nebula is about 1,344 light-years away and is visible to the naked eye.",
+        drawOrion
+    },
+    {
+        "Pleiades", 
+        "Here we find the Seven Sisters - the Pleiades star cluster. These hot blue stars are cosmic teenagers, only about 100 million years old. They're surrounded by wispy reflection nebulae that glow blue from the starlight reflecting off cosmic dust. This cluster has inspired myths and legends in cultures around the world.",
+        "The Pleiades contains over 1,000 stars and is about 444 light-years from Earth.",
+        drawPleiades
+    },
+    {
+        "Ring Nebula", 
+        "Our path leads us to witness the fate of a star like our Sun - the Ring Nebula. This planetary nebula formed when a dying star expelled its outer layers, creating this cosmic donut of glowing gas. At its center sits a white dwarf, the hot dense core of the original star, slowly cooling over billions of years.",
+        "The Ring Nebula is about 2,000 light-years away and was formed about 20,000 years ago.",
+        drawRing
+    },
+    {
+        "Double Cluster", 
+        "We approach a spectacular sight - the Double Cluster in Perseus. Two distinct star clusters, NGC 869 and NGC 884, appear to dance together in space. These young, hot star clusters contain hundreds of brilliant blue and white stars, creating one of the most beautiful deep-sky objects visible from Earth.",
+        "The Double Cluster contains over 700 stars and is about 7,500 light-years away.",
+        drawDoubleCluster
     }
 };
 const int StoryMode::TOTAL_STORY_STOPS = sizeof(StoryMode::storyStopsList) / sizeof(StoryMode::storyStopsList[0]);
