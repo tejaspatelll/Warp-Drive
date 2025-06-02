@@ -1978,153 +1978,226 @@ void powerOff() {
 void drawMenu() {
   tft.fillScreen(BG_COLOR);
 
-  // Draw retro grid background
+  // Draw retro grid background with enhanced pattern
   const int gridSize = 16;
-  for (int x = 0; x < SCREEN_WIDTH; x += gridSize) {
-    for (int y = 0; y < SCREEN_HEIGHT; y += gridSize) {
-      tft.drawRect(x, y, gridSize, gridSize, tft.color565(0, 20, 40));
+  const uint16_t gridColor1 = tft.color565(0, 10, 20);
+  const uint16_t gridColor2 = tft.color565(0, 25, 50);
+  
+  for (int y = 0; y < SCREEN_HEIGHT; y += gridSize) {
+    for (int x = 0; x < SCREEN_WIDTH; x += gridSize) {
+      // Alternating grid colors
+      uint16_t gridColor = ((x / gridSize) + (y / gridSize)) % 2 == 0 ? gridColor1 : gridColor2;
+      tft.drawRect(x, y, gridSize, gridSize, gridColor);
     }
   }
 
-  // Add scanline effect for CRT look
-  for (int y = 0; y < SCREEN_HEIGHT; y += 3) {
-    tft.drawFastHLine(0, y, SCREEN_WIDTH, tft.color565(0, 0, 20));
+  // Add more prominent scanline effect
+  for (int y = 0; y < SCREEN_HEIGHT; y += 2) {
+    tft.drawFastHLine(0, y, SCREEN_WIDTH, tft.color565(0, 0, 15)); // Darker scanline
   }
 
-  // Draw title with enhanced size and retro effects
-  // First draw the decorative lines
+  // Draw title with enhanced glow and outline
   int titleY = SCREEN_HEIGHT * 0.15;
-  int lineY1 = titleY - 40;
-  int lineY2 = titleY + 45;
-  
-  // Draw horizontal decorative lines
-  for(int i = 0; i < 3; i++) {
-    tft.drawFastHLine(20, lineY1 + i, SCREEN_WIDTH - 40, tft.color565(0, 100 + i*50, 200 + i*20));
-    tft.drawFastHLine(20, lineY2 + i, SCREEN_WIDTH - 40, tft.color565(0, 100 + i*50, 200 + i*20));
-  }
-
-  // Draw title shadow with multiple layers for glow effect
-  tft.setTextSize(3);  // Increased from 2 to 3
+  tft.setTextSize(3);
   tft.setTextDatum(MC_DATUM);
   
-  // Draw multiple shadow layers for glow effect
-  for(int i = 3; i > 0; i--) {
-    tft.setTextColor(tft.color565(0, 60 - i*15, 120 - i*20));
+  // Multiple shadow/glow layers
+  for(int i = 4; i > 0; i--) {
+    uint8_t colorIntensity = 40 + i * 30;
+    tft.setTextColor(tft.color565(0, colorIntensity * 0.6, colorIntensity));
     tft.drawString("WARP", SCREEN_WIDTH/2 + i, titleY - 15 + i);
     tft.drawString("DRIVE", SCREEN_WIDTH/2 + i, titleY + 15 + i);
   }
   
-  // Draw main title text
-  tft.setTextColor(tft.color565(0, 200, 255));
+  // Main title text with outline
+  tft.setTextColor(tft.color565(150, 220, 255)); // Lighter main color
+  tft.drawString("WARP", SCREEN_WIDTH/2, titleY - 15);
+  tft.drawString("DRIVE", SCREEN_WIDTH/2, titleY + 15);
+  
+  // Add a stark outline around the main text
+  tft.setTextColor(TFT_BLACK);
+  tft.drawString("WARP", SCREEN_WIDTH/2 + 2, titleY - 15 + 2);
+  tft.drawString("WARP", SCREEN_WIDTH/2 - 2, titleY - 15 - 2);
+  tft.drawString("WARP", SCREEN_WIDTH/2 + 2, titleY - 15 - 2);
+  tft.drawString("WARP", SCREEN_WIDTH/2 - 2, titleY - 15 + 2);
+  tft.drawString("DRIVE", SCREEN_WIDTH/2 + 2, titleY + 15 + 2);
+  tft.drawString("DRIVE", SCREEN_WIDTH/2 - 2, titleY + 15 - 2);
+  tft.drawString("DRIVE", SCREEN_WIDTH/2 + 2, titleY + 15 - 2);
+  tft.drawString("DRIVE", SCREEN_WIDTH/2 - 2, titleY + 15 + 2);
+  
+  // Redraw main text on top for outline effect
+  tft.setTextColor(tft.color565(150, 220, 255));
   tft.drawString("WARP", SCREEN_WIDTH/2, titleY - 15);
   tft.drawString("DRIVE", SCREEN_WIDTH/2, titleY + 15);
 
-  // Add pixel-style underline for title
-  for(int i = 0; i < 2; i++) {
-    tft.drawFastHLine(SCREEN_WIDTH/2 - 100 + i*2, titleY + 35 + i, 200 - i*4, tft.color565(0, 200 - i*50, 255 - i*50));
+  // Add pixel-style underline for title with more depth
+  for(int i = 0; i < 4; i++) {
+    uint16_t lineColor = tft.color565(0, 100 + i*30, 150 + i*20);
+    tft.drawFastHLine(SCREEN_WIDTH/2 - 100 + i*2, titleY + 35 + i, 200 - i*4, lineColor);
   }
 
-  // Menu layout parameters - adjusted to be lower on screen
-  int baseCardWidth = SCREEN_WIDTH * 0.75;
-  int baseCardHeight = SCREEN_HEIGHT * 0.11;  // Slightly smaller
-  int cardSpacing = SCREEN_HEIGHT * 0.05;    // Slightly reduced spacing
-  int totalHeight = MENU_ITEMS * baseCardHeight + (MENU_ITEMS - 1) * cardSpacing;
-  int startY = (SCREEN_HEIGHT - totalHeight) / 2 + 50;  // Moved down further
+  // Menu layout parameters
+  int baseDiscoveryWidth = SCREEN_WIDTH * 0.85; // Larger width for Discovery
+  int baseDiscoveryHeight = SCREEN_HEIGHT * 0.18; // Larger height for Discovery
+  
+  int baseOtherWidth = SCREEN_WIDTH * 0.75; // Smaller width for other items
+  int baseOtherHeight = SCREEN_HEIGHT * 0.12; // Smaller height for other items
 
-  // Draw each menu item with retro styling
+  int cardSpacing = SCREEN_HEIGHT * 0.02;    // Further reduced spacing
+  
+  // Calculate total height and starting Y based on different sizes
+  int totalHeight = baseDiscoveryHeight + (MENU_ITEMS - 1) * baseOtherHeight + (MENU_ITEMS - 1) * cardSpacing;
+  int startY = (SCREEN_HEIGHT - totalHeight) / 2 + 30;  // Adjusted starting Y again
+
+  int currentCardY = startY; // Track the Y position for drawing
+
+  // Draw each menu item with enhanced retro styling
   for (int i = 0; i < MENU_ITEMS; i++) {
-    float scaleFactor = (i == currentMenuItem) ? 1.15f : 1.0f;
+    int baseCardWidth = (i == 0) ? baseDiscoveryWidth : baseOtherWidth;
+    int baseCardHeight = (i == 0) ? baseDiscoveryHeight : baseOtherHeight;
+
+    float scaleFactor = (i == currentMenuItem) ? 1.08f : 1.0f; // Slightly reduced scale for selection
     int cardWidth = baseCardWidth * scaleFactor;
     int cardHeight = baseCardHeight * scaleFactor;
     int cardX = (SCREEN_WIDTH - cardWidth) / 2;
-    int cardY = startY + i * (baseCardHeight + cardSpacing);
     
+    // Adjust cardY to keep the center aligned when scaling
+    int cardY = currentCardY;
     if (i == currentMenuItem) {
-      cardY = startY + i * (baseCardHeight + cardSpacing) - (cardHeight-baseCardHeight)/2;
-      
-      // Draw retro selection arrows
-      int arrowSize = 10;
-      for (int j = 0; j < 3; j++) {
+        cardY -= (cardHeight - baseCardHeight) / 2; // Shift up to keep center relatively stable
+    }
+
+    // Determine colors based on item and selection state
+    uint16_t mainColor, highlightColor, borderColor, shadowColor;
+    
+    // Standard background color for all unselected items
+    const uint16_t standardUnselectedBgColor = tft.color565(0, 40, 80);
+
+    // Define specific colors for Discovery vs. other items for borders and shadows
+    if (i == 0) { // Discovery item
+        highlightColor = COLOR_HIGHLIGHT; // Yellow highlight for selected
+        borderColor = tft.color565(0, 200, 255); // Cyan border
+        shadowColor = tft.color565(0, 30, 60); // Darker shadow
+    } else { // Other items (Quiz, Story)
+        highlightColor = COLOR_HIGHLIGHT; // Yellow highlight for selected
+        borderColor = tft.color565(0, 80, 160); // Standard border
+        shadowColor = tft.color565(0, 10, 20); // Very dark shadow
+    }
+
+    if (i == currentMenuItem) {
+      // Draw retro selection arrows - more detailed
+      int arrowSize = 12;
+      int arrowSpacing = 5;
+      for (int j = 0; j < 4; j++) { // More segments for arrows
+        uint16_t arrowColor = tft.color565(255, 200 + j * 14, j * 60);
         tft.fillTriangle(
-          cardX - 15 - j*4, cardY + cardHeight/2,
-          cardX - 5 - j*4, cardY + cardHeight/2 - arrowSize,
-          cardX - 5 - j*4, cardY + cardHeight/2 + arrowSize,
-          tft.color565(255, 255, j * 85)
+          cardX - 15 - j*arrowSpacing, cardY + cardHeight/2,
+          cardX - 5 - j*arrowSpacing, cardY + cardHeight/2 - arrowSize,
+          cardX - 5 - j*arrowSpacing, cardY + cardHeight/2 + arrowSize,
+          arrowColor
         );
         
         tft.fillTriangle(
-          cardX + cardWidth + 15 + j*4, cardY + cardHeight/2,
-          cardX + cardWidth + 5 + j*4, cardY + cardHeight/2 - arrowSize,
-          cardX + cardWidth + 5 + j*4, cardY + cardHeight/2 + arrowSize,
-          tft.color565(255, 255, j * 85)
+          cardX + cardWidth + 15 + j*arrowSpacing, cardY + cardHeight/2,
+          cardX + cardWidth + 5 + j*arrowSpacing, cardY + cardHeight/2 - arrowSize,
+          cardX + cardWidth + 5 + j*arrowSpacing, cardY + cardHeight/2 + arrowSize,
+          arrowColor
         );
       }
 
-      // Selected item style
-      tft.fillRect(cardX + 4, cardY + 4, cardWidth - 8, cardHeight - 8, tft.color565(0, 40, 80));
-      tft.drawRect(cardX + 2, cardY + 2, cardWidth - 4, cardHeight - 4, tft.color565(0, 160, 255));
-      tft.drawRect(cardX, cardY, cardWidth, cardHeight, COLOR_HIGHLIGHT);
-    } else {
-      // Unselected item style
-      tft.fillRect(cardX, cardY, cardWidth, cardHeight, tft.color565(0, 20, 40));
-      tft.drawRect(cardX, cardY, cardWidth, cardHeight, tft.color565(0, 80, 160));
+      // Selected item style with glowing border
+      // Fill color is brighter blue only for Discovery when selected, otherwise standard unselected color
+      uint16_t selectedFillColor = (i == 0) ? tft.color565(0, 150, 255) : standardUnselectedBgColor;
+      tft.fillRect(cardX + 4, cardY + 4, cardWidth - 8, cardHeight - 8, selectedFillColor); // Inner fill
+      
+      // Multiple border layers for glow (apply only for selected item)
+      for(int j=0; j<3; ++j) {
+        uint16_t glowColor = tft.color565(j*80, 160 + j*30, 255); // Cyan glow
+        tft.drawRect(cardX + 2 - j, cardY + 2 - j, cardWidth - 4 + j*2, cardHeight - 4 + j*2, glowColor);
+      }
+      tft.drawRect(cardX, cardY, cardWidth, cardHeight, highlightColor); // Final highlight border
+    } else { // Not selected
+      // Unselected item style with subtle shadow
+      tft.fillRect(cardX + 3, cardY + 3, cardWidth - 3, cardHeight - 3, shadowColor); // Shadow
+      tft.fillRect(cardX, cardY, cardWidth, cardHeight, standardUnselectedBgColor); // Main fill (same for all unselected)
+      
+      // Border color based on item type when NOT selected
+      uint16_t unselectedBorderColor = (i == 0) ? tft.color565(0, 200, 255) : tft.color565(0, 80, 160);
+      tft.drawRect(cardX, cardY, cardWidth, cardHeight, unselectedBorderColor); // Border
     }
 
-    // Draw 8-bit style icons
-    int iconX = cardX + cardHeight / 2;
+    // Draw 8-bit style icons - position relative to the current card center
+    int iconX = cardX + cardWidth * 0.2; // Position icon more to the left
     int iconY = cardY + cardHeight / 2;
     int iconSize = cardHeight / 3;
     
     switch (i) {
-      case 0: // Discovery - pixelated planet
-        tft.fillCircle(iconX, iconY, iconSize, tft.color565(0, 200, 255));
-        tft.fillCircle(iconX - iconSize/3, iconY - iconSize/3, iconSize/3, tft.color565(0, 255, 255));
+      case 0: // Discovery - pixelated planet with ring
+        tft.fillCircle(iconX, iconY, iconSize, tft.color565(0, 200, 255)); // Planet body
+        tft.fillCircle(iconX - iconSize/3, iconY - iconSize/3, iconSize/3, tft.color565(0, 255, 255)); // Highlight
+        // Draw a ring
+        tft.drawCircle(iconX, iconY, iconSize + 3, tft.color565(255, 150, 0));
+        tft.drawFastHLine(iconX - iconSize - 5, iconY, (iconSize + 5) * 2, tft.color565(255, 150, 0));
         break;
-      case 1: // Quiz - pixelated question mark
+      case 1: // Quiz - pixelated question mark in a box
         tft.fillRect(iconX - iconSize/2, iconY - iconSize/2, iconSize, iconSize, tft.color565(255, 220, 0));
         tft.setTextColor(tft.color565(0, 0, 0));
-        tft.setTextSize(2);
-        tft.drawChar(iconX - iconSize/3, iconY - iconSize/2, '?', tft.color565(0, 0, 0), tft.color565(255, 220, 0), 1);
+        tft.setTextSize(2); // Use text size 2 for icons
+        tft.setTextDatum(MC_DATUM);
+        tft.drawString("?", iconX, iconY); // Center the question mark
         break;
-      case 2: // Story - pixelated book
+      case 2: // Story - pixelated book with pages
         for(int j = 0; j < 3; j++) {
           tft.drawRect(iconX - iconSize/2 + j*2, iconY - iconSize/2 + j*2, 
                       iconSize - j*4, iconSize - j*2, 
                       tft.color565(255 - j*40, 100 - j*20, 100 - j*20));
         }
+        // Add lines for pages
+        tft.drawFastHLine(iconX - iconSize/2 + 5, iconY - iconSize/4, iconSize - 10, tft.color565(200, 80, 80));
+        tft.drawFastHLine(iconX - iconSize/2 + 5, iconY, iconSize - 10, tft.color565(200, 80, 80));
+        tft.drawFastHLine(iconX - iconSize/2 + 5, iconY + iconSize/4, iconSize - 10, tft.color565(200, 80, 80));
         break;
     }
 
-    // Draw menu text with retro style
-    tft.setTextDatum(MC_DATUM);
+    // Draw menu text with retro style - position to the right of the icon
+    tft.setTextDatum(ML_DATUM); // Use Middle-Left datum
+    tft.setTextSize(2); // Use text size 2 for menu items
+    
+    int textX = cardX + cardWidth * 0.35; // Position text to the right of icon area
+    int textY = cardY + cardHeight/2;
+
+    // Determine text color based on selection
+    uint16_t textColor = (i == currentMenuItem) ? tft.color565(150, 220, 255) : COLOR_TEXT;
+
     if (i == currentMenuItem) {
       // Selected text with glow effect
-      tft.setTextColor(tft.color565(100, 200, 255));
-      tft.setTextSize(2);
-      tft.drawString(menuItems[i].name, cardX + cardWidth/2 + 1, cardY + cardHeight/2 + 1);
+      tft.setTextColor(tft.color565(150, 220, 255));
+      tft.drawString(menuItems[i].name, textX + 1, textY + 1);
       tft.setTextColor(COLOR_HIGHLIGHT);
-      tft.drawString(menuItems[i].name, cardX + cardWidth/2, cardY + cardHeight/2);
+      tft.drawString(menuItems[i].name, textX, textY);
     } else {
       // Unselected text
-      tft.setTextColor(COLOR_TEXT);
-      tft.setTextSize(2);
-      tft.drawString(menuItems[i].name, cardX + cardWidth/2, cardY + cardHeight/2);
+      tft.setTextColor(textColor);
+      tft.drawString(menuItems[i].name, textX, textY);
     }
+
+    // Update currentCardY for the next item, using the *base* height for spacing
+    currentCardY += baseCardHeight + cardSpacing;
   }
 
-  // Draw retro footer with scanlines
+  // Draw retro footer with enhanced scanlines and border
   int footerHeight = SCREEN_HEIGHT * 0.08;
   int footerY = SCREEN_HEIGHT - footerHeight;
   
   // Footer background with scanlines
-  tft.fillRect(0, footerY, SCREEN_WIDTH, footerHeight, tft.color565(0, 20, 40));
+  tft.fillRect(0, footerY, SCREEN_WIDTH, footerHeight, tft.color565(0, 15, 30)); // Darker background
   for (int y = footerY; y < SCREEN_HEIGHT; y += 2) {
-    tft.drawFastHLine(0, y, SCREEN_WIDTH, tft.color565(0, 30, 60));
+    tft.drawFastHLine(0, y, SCREEN_WIDTH, tft.color565(0, 20, 40)); // Darker scanlines
   }
 
-  // Footer text with pixel-style border
-  tft.drawRect(0, footerY, SCREEN_WIDTH, footerHeight, tft.color565(0, 100, 200));
-  tft.setTextColor(COLOR_GREEN);
+  // Footer text with pixel-style border and more contrast
+  tft.drawRect(0, footerY, SCREEN_WIDTH, footerHeight, tft.color565(0, 80, 160)); // Standard border
+  tft.setTextColor(tft.color565(100, 255, 100)); // Brighter green
   tft.setTextSize(1);
   tft.setTextDatum(MC_DATUM);
   tft.drawString("KNOB: Select  |  BTN: Go - Setting", SCREEN_WIDTH/2, footerY + footerHeight/2);

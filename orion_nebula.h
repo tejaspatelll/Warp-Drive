@@ -101,10 +101,10 @@ const uint16_t H_ALPHA_COLORS[] = {
 const int NUM_H_ALPHA_COLORS = sizeof(H_ALPHA_COLORS) / sizeof(H_ALPHA_COLORS[0]);
 
 const uint16_t OIII_COLORS[] = {
-    0x07E0,  // Green (OIII 501nm)
-    0x07FF,  // Cyan-green (OIII 496nm)
-    0x05FF,  // Blue-green
-    0x04FF   // Aqua
+    0x1E7F,  // Deep blue
+    0x3F7F,  // Blue-white
+    0x07FF,  // Cyan-blue
+    0xFFFF   // White-hot
 };
 const int NUM_OIII_COLORS = sizeof(OIII_COLORS) / sizeof(OIII_COLORS[0]);
 
@@ -208,13 +208,10 @@ void initializeOrion() {
         
         if (distanceFromCenter < 8.0f) { // Central region - lots of ionized gas
             int gasRand = random(100);
-            if (gasRand < 40) {
+            if (gasRand < 60) { // Increased chance for H-alpha in central region
                 orionParticles[i].gasType = 0; // H-alpha (red)
                 orionParticles[i].color = H_ALPHA_COLORS[random(NUM_H_ALPHA_COLORS)];
-            } else if (gasRand < 70) {
-                orionParticles[i].gasType = 1; // OIII (green-blue)
-                orionParticles[i].color = OIII_COLORS[random(NUM_OIII_COLORS)];
-            } else if (gasRand < 85) {
+            } else if (gasRand < 80) { // Increased chance for Hot gas
                 orionParticles[i].gasType = 3; // Hot gas (blue)
                 orionParticles[i].color = HOT_GAS_COLORS[random(NUM_HOT_GAS_COLORS)];
             } else {
@@ -222,16 +219,12 @@ void initializeOrion() {
                 orionParticles[i].color = DUST_COLORS[random(NUM_DUST_COLORS)];
                 orionParticles[i].brightness = 0.3f; // Dust is dimmer
             }
-            orionParticles[i].isGas = gasRand < 85;
+            orionParticles[i].isGas = gasRand < 80;
         } else { // Outer regions - more H-alpha and dust
             int gasRand = random(100);
-            if (gasRand < 60) {
+            if (gasRand < 70) { // Increased chance for H-alpha in outer regions
                 orionParticles[i].gasType = 0; // H-alpha dominates outer regions
                 orionParticles[i].color = H_ALPHA_COLORS[random(NUM_H_ALPHA_COLORS)];
-                orionParticles[i].isGas = true;
-            } else if (gasRand < 75) {
-                orionParticles[i].gasType = 1; // Some OIII
-                orionParticles[i].color = OIII_COLORS[random(NUM_OIII_COLORS)];
                 orionParticles[i].isGas = true;
             } else {
                 orionParticles[i].gasType = 2; // Dust lanes
@@ -452,7 +445,7 @@ void drawOrion() {
         if (orionParticles[i].gasType == 0) { // H-alpha - responds to UV radiation
             currentBrightness *= (1.0f + illumination * 0.3f);
         } else if (orionParticles[i].gasType == 1) { // OIII - high ionization
-            currentBrightness *= (1.0f + illumination * 0.5f);
+            // No OIII in this version, remove specific effect
         } else if (orionParticles[i].gasType == 3) { // Hot gas
             currentBrightness *= (1.0f + illumination * 0.7f);
         }

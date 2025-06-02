@@ -14,8 +14,8 @@ extern int objectX, objectY;
 extern float objectScale;
 
 // Jewel Box Cluster parameters
-#define MAX_JEWEL_STARS 55
-#define MAX_BRIGHT_STARS 20
+#define MAX_JEWEL_STARS 80
+#define MAX_BRIGHT_STARS 30
 
 struct JewelStar {
     float x, y;
@@ -35,14 +35,19 @@ JewelStar jewelStars[MAX_JEWEL_STARS];
 bool jewelBoxInitialized = false;
 unsigned long jewelBoxLastUpdateTime = 0;
 
-// Star colors for the Jewel Box (blue, yellow, orange, red, white)
+// Star colors for the Jewel Box (blue, yellow, orange, red, white, green, gold)
 const uint16_t JEWEL_COLORS[] = {
-    0x1E7F,  // Deep blue
-    0x07FF,  // Cyan-blue  
+    0x001F,  // Saturated Blue
+    0x07FF,  // Cyan-blue
     0xFFE0,  // Yellow
     0xFD20,  // Orange
     0xF800,  // Red
-    0xFFFF   // White - keep white in palette for random assignment possibility
+    0xFFFF,   // White
+    0x07E0,  // Green
+    0xFDC0,   // Gold/Orange-Yellow
+    0xAFE0,  // Bright Green
+    0xFF00,  // Pure Red
+    0x00FF   // Pure Blue
 };
 const int NUM_JEWEL_COLORS = sizeof(JEWEL_COLORS) / sizeof(JEWEL_COLORS[0]);
 
@@ -51,7 +56,7 @@ void initializeJewelBox() {
     
     float centerX = 0; // Relative to object center
     float centerY = 0;
-    float clusterRadius = 15.0f; // Adjusted cluster radius
+    float clusterRadius = 18.0f; // Slightly increased cluster radius
     
     // Initialize all stars with radial distribution
     for (int i = 0; i < MAX_JEWEL_STARS; i++) {
@@ -61,9 +66,9 @@ void initializeJewelBox() {
 
         // Use a distribution that concentrates stars towards the center
         float angle = random(360) * PI / 180.0f;
-        // Cube the random distance for higher density near center
+        // Use a power law for radius distribution to concentrate towards center
         float u = random(1000) / 1000.0f; // Uniform random [0,1]
-        float distance = clusterRadius * pow(u, 0.3); // Adjust exponent for distribution
+        float distance = clusterRadius * pow(u, 0.5); // Adjusted exponent for more central concentration
 
         jewelStars[i].originalX = centerX + cos(angle) * distance;
         jewelStars[i].originalY = centerY + sin(angle) * distance;
@@ -72,23 +77,23 @@ void initializeJewelBox() {
         if (i < MAX_BRIGHT_STARS) {
             // These are the prominent, brighter stars
             jewelStars[i].isBrightStar = true;
-            jewelStars[i].size = random(2, 4); // Larger size
-            jewelStars[i].brightness = 0.8f + random(20) / 100.0f; // Brighter initial brightness
-            jewelStars[i].twinkleSpeed = 0.02f + random(10) / 500.0f;
-            // Assign colors from palette - more likely to get distinct colors
-            jewelStars[i].color = JEWEL_COLORS[random(NUM_JEWEL_COLORS -1 )]; // Exclude pure white for bright ones initially
-             if (random(100) < 10) { // Small chance for a white bright star
+            jewelStars[i].size = random(2, 5); // Larger size range
+            jewelStars[i].brightness = 0.95f + random(5) / 100.0f; // Increased initial brightness
+            jewelStars[i].twinkleSpeed = 0.04f + random(10) / 500.0f; // Faster, more noticeable twinkle
+            // Assign colors from expanded palette - more likely to get distinct colors
+            jewelStars[i].color = JEWEL_COLORS[random(NUM_JEWEL_COLORS)]; // Use full palette for bright ones
+             if (random(100) < 25) { // Increased chance for a white bright star
                  jewelStars[i].color = 0xFFFF;
              }
         } else {
             // These are dimmer background stars
             jewelStars[i].isBrightStar = false;
             jewelStars[i].size = 1; // Single pixel
-            jewelStars[i].brightness = 0.3f + random(30) / 100.0f; // Dimmer initial brightness
-            jewelStars[i].twinkleSpeed = 0.01f + random(5) / 500.0f;
+            jewelStars[i].brightness = 0.5f + random(30) / 100.0f; // Increased initial brightness for dimmer stars
+            jewelStars[i].twinkleSpeed = 0.02f + random(5) / 500.0f; // Slightly faster twinkling
             jewelStars[i].color = 0xFFFF; // Mostly white background stars
-            if (random(100) < 5) { // Very small chance for a colored dimmer star
-                jewelStars[i].color = JEWEL_COLORS[random(NUM_JEWEL_COLORS -1 )];
+            if (random(100) < 15) { // Increased chance for a colored dimmer star
+                jewelStars[i].color = JEWEL_COLORS[random(NUM_JEWEL_COLORS - 2)]; // Exclude Green and Gold for dimmer ones mostly
             }
         }
         jewelStars[i].twinklePhase = random(360) * PI / 180.0f; // Random starting phase
@@ -118,8 +123,8 @@ void drawJewelBox() {
         
         // Calculate new position based on scale and center
         // Add a very subtle random drift to the original position
-        float driftX = sin(currentTime / 5000.0f + i) * 0.2f; // Slow horizontal drift
-        float driftY = cos(currentTime / 6000.0f + i*2) * 0.2f; // Slow vertical drift
+        float driftX = sin(currentTime / 4000.0f + i) * 0.3f; // Slightly faster and wider horizontal drift
+        float driftY = cos(currentTime / 5000.0f + i*2) * 0.3f; // Slightly faster and wider vertical drift
 
         jewelStars[i].x = centerX + (jewelStars[i].originalX + driftX) * scale;
         jewelStars[i].y = centerY + (jewelStars[i].originalY + driftY) * scale;
@@ -151,9 +156,9 @@ void drawJewelBox() {
         }
         
         // Calculate brightness with twinkling effect - slightly stronger twinkle for bright stars
-        float twinkleFactor = jewelStars[i].isBrightStar ? (0.6f + 0.4f * sin(jewelStars[i].twinklePhase)) : (0.8f + 0.2f * sin(jewelStars[i].twinklePhase));
+        float twinkleFactor = jewelStars[i].isBrightStar ? (0.5f + 0.5f * sin(jewelStars[i].twinklePhase)) : (0.7f + 0.3f * sin(jewelStars[i].twinklePhase)); // Stronger twinkle overall, more for bright stars
         float currentBrightness = jewelStars[i].brightness * twinkleFactor;
-        currentBrightness = constrain(currentBrightness, 0.1f, 1.0f); // Ensure minimum brightness
+        currentBrightness = constrain(currentBrightness, 0.3f, 1.0f); // Increased minimum brightness during twinkle cycle
         
         // Apply brightness to color (optimized)
         uint16_t drawColor;
@@ -177,16 +182,46 @@ void drawJewelBox() {
             if (jewelStars[i].size == 1) {
                 tft.drawPixel(drawX, drawY, drawColor);
             } else {
-                // Draw larger stars as filled circles
-                int circleRadius = jewelStars[i].size / 2;
-                tft.fillCircle(drawX, drawY, circleRadius, drawColor);
+                // Draw larger stars as '+' symbols
+                int halfSize = jewelStars[i].size / 2;
+                tft.drawLine(drawX - halfSize, drawY, drawX + halfSize, drawY, drawColor); // Horizontal line
+                tft.drawLine(drawX, drawY - halfSize, drawX, drawY + halfSize, drawColor); // Vertical line
                 
-                // Add sparkle effect for bright colored stars (small halo/glow)
-                if (jewelStars[i].isBrightStar && currentBrightness > 0.8f) { // Sparkle when bright
-                    int glowRadius = circleRadius + 1;
-                    uint8_t glowAlpha = map(currentBrightness, 0.8f, 1.0f, 50, 100); // Glow intensity based on brightness
-                    uint16_t glowColor = tft.color565(glowAlpha, glowAlpha, glowAlpha); // White glow
-                    tft.drawCircle(drawX, drawY, glowRadius, glowColor);
+                // Add sparkle effect for bright colored stars (small halo/glow and diffraction spikes)
+                if (jewelStars[i].isBrightStar && currentBrightness > 0.7f) { // Sparkle when bright
+                    int glowRadius = halfSize + 1;
+                    uint16_t glowColor = jewelStars[i].color; // Use star's color for glow
+                     // Reduce brightness for glow to make it subtle
+                    uint8_t r5 = (glowColor >> 11) & 0x1F;
+                    uint8_t g6 = (glowColor >> 5) & 0x3F;
+                    uint8_t b5 = glowColor & 0x1F;
+                    
+                    uint8_t r_scaled = (uint8_t)(r5 * 0.5f); // Slightly brighter glow
+                    uint8_t g_scaled = (uint8_t)(g6 * 0.5f);
+                    uint8_t b_scaled = (uint8_t)(b5 * 0.5f);
+                    
+                    uint16_t dimGlowColor = (r_scaled << 11) | (g_scaled << 5) | b_scaled;
+                    
+                    tft.drawCircle(drawX, drawY, glowRadius, dimGlowColor);
+                    
+                    // Add subtle diffraction spikes for the brightest stars
+                    if (currentBrightness > 0.9f && jewelStars[i].size > 2) { // Add spikes for very bright, larger stars
+                        int spikeLength = halfSize + 2;
+                        uint16_t spikeColor = jewelStars[i].color;
+                         // Dimmer spikes
+                        uint8_t spike_r5 = (spikeColor >> 11) & 0x1F;
+                        uint8_t spike_g6 = (spikeColor >> 5) & 0x3F;
+                        uint8_t spike_b5 = spikeColor & 0x1F;
+                        
+                        uint8_t spike_r_scaled = (uint8_t)(spike_r5 * 0.7f); // Dimmer spikes
+                        uint8_t spike_g_scaled = (uint8_t)(spike_g6 * 0.7f);
+                        uint8_t spike_b_scaled = (uint8_t)(spike_b5 * 0.7f);
+                        
+                        uint16_t dimSpikeColor = (spike_r_scaled << 11) | (spike_g_scaled << 5) | spike_b_scaled;
+
+                        tft.drawLine(drawX - spikeLength, drawY, drawX + spikeLength, drawY, dimSpikeColor);
+                        tft.drawLine(drawX, drawY - spikeLength, drawX, drawY + spikeLength, dimSpikeColor);
+                    }
                 }
             }
         }
@@ -200,26 +235,10 @@ void drawJewelBox() {
 void eraseJewelBox() {
     if (!jewelBoxInitialized) return;
     
-    // Erase all star positions
-    for (int i = 0; i < MAX_JEWEL_STARS; i++) {
-        // Only erase if the previous position was on screen
-        if (jewelStars[i].prevX >= 0 && jewelStars[i].prevX < SCREEN_WIDTH &&
-            jewelStars[i].prevY >= 0 && jewelStars[i].prevY < SCREEN_HEIGHT) {
-            
-            int eraseSize = jewelStars[i].size + 3; // Ensure full cleanup
-            for (int ex = -eraseSize; ex <= eraseSize; ex++) {
-                for (int ey = -eraseSize; ey <= eraseSize; ey++) {
-                    int px = jewelStars[i].prevX + ex;
-                    int py = jewelStars[i].prevY + ey;
-                    if (px >= 0 && px < SCREEN_WIDTH && py >= 0 && py < SCREEN_HEIGHT) {
-                        tft.drawPixel(px, py, BG_COLOR);
-                    }
-                }
-            }
-        }
-        jewelStars[i].prevX = -1;
-        jewelStars[i].prevY = -1; // Mark as erased/invalid
-    }
+    // Full screen clear for faster erase
+    tft.fillScreen(BG_COLOR);
+    
+    // No allocated memory to free for this object
     
     jewelBoxInitialized = false; // Reset initialization flag
 }

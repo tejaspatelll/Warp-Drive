@@ -835,59 +835,69 @@ void StoryMode::updateCurrentStepVisuals() {
         // Update scroll position with pauses
         unsigned long currentTime = millis();
         
+        // Calculate total text height
+        int totalTextHeight = lines.size() * lineHeight;
+        
+        // Adjust initial scroll position to start at the bottom edge of the box
+        // if a new step has just started.
+        if (currentStoryStep != lastDisplayedStoryStep) {
+             narrationScrollY = 0; // Start the scroll offset at 0 from the bottom edge
+             isScrollPaused = true; // Start with a pause
+             lastScrollPauseTime = currentTime; // Reset pause timer
+        }
+
         // Handle scroll pauses
         if (isScrollPaused) {
             if (currentTime - lastScrollPauseTime > scrollPauseTime) {
                 isScrollPaused = false;
-                lastScrollPauseTime = currentTime;
+                lastNarrationScrollTime = currentTime; // Reset scroll timer when pause ends
             }
         } else if (currentTime - lastNarrationScrollTime > narrationScrollPixelSpeed) {
             lastNarrationScrollTime = currentTime;
             narrationScrollY++; // Scroll upward
             
-            // Calculate total text height
-            int totalTextHeight = lines.size() * lineHeight;
-            
-            // Check if we need to pause at the end
-            if (narrationScrollY > totalTextHeight + narrationBoxHeight) {
-                narrationScrollY = -narrationBoxHeight;
-                isScrollPaused = true;
-                lastScrollPauseTime = currentTime;
+            // Check if we need to pause at the end or loop
+            if (narrationScrollY >= totalTextHeight + narrationBoxHeight) { // Scroll until the last line has exited the top of the box
+                 narrationScrollY = 0; // Reset to start scrolling again from the bottom
+                 isScrollPaused = true; // Pause before restarting
+                 lastScrollPauseTime = currentTime; // Reset pause timer
             }
         }
 
-        // Calculate starting Y position for text to scroll from bottom
+        // Calculate starting Y position for text to scroll from bottom edge of the box
         int textStartY = narrationBoxYPos + narrationBoxHeight - narrationScrollY;
         
         // Second pass: draw all lines with strict bounds checking
-        int visibleTop = narrationBoxYPos + textPaddingTop;
-        int visibleBottom = narrationBoxYPos + narrationBoxHeight - textPaddingTop;
+        int visibleTop = narrationBoxYPos + textPaddingTop; // Top boundary for drawing text
+        int visibleBottom = narrationBoxYPos + narrationBoxHeight - textPaddingInsideBox; // Bottom boundary for drawing text
         
         // Save the current text color for later restoration
         uint16_t savedColor = tft.textcolor;
         
+        // Clear the text area before drawing new lines
+        tft.fillRect(narrBoxX + textPaddingInsideBox, visibleTop, 
+                     textDisplayWidth + 16, narrationBoxHeight - textPaddingTop - textPaddingInsideBox, 
+                     tft.color565(0, 40, 80)); // Use the narration box fill color for clearing
+
         for(size_t i = 0; i < lines.size(); i++) {
-            int currentY = textStartY + (i * lineHeight);
+            int currentLineBaseY = textStartY + (i * lineHeight);
+            int currentLineCenterY = currentLineBaseY + lineHeight/2; // For MC_DATUM
             
-            // Only draw if line is within the visible area of the box
-            if (currentY >= visibleTop && currentY <= visibleBottom) {
-                // Create a temporary background-colored rectangle to clear any previous text
-                tft.setTextColor(tft.color565(0, 40, 80)); // Background color
-                tft.drawString("                              ", SCREEN_WIDTH/2, currentY); // Clear line with spaces
-                
-                // Draw the actual text
-                tft.setTextColor(tft.color565(220, 220, 240)); // Text color
-                tft.drawString(lines[i], SCREEN_WIDTH/2, currentY);
+            // Only draw if the center of the line is within the visible area of the box
+            if (currentLineCenterY >= visibleTop && currentLineCenterY <= visibleBottom) {
+                 tft.setTextColor(tft.color565(220, 220, 240)); // Text color
+                 tft.drawString(lines[i], SCREEN_WIDTH/2, currentLineCenterY); // Draw centered
             }
         }
         
         // Restore the original text color
         tft.setTextColor(savedColor);
 
-        lastDisplayedStoryStep = currentStoryStep;
+        lastDisplayedStoryStep = currentStoryStep; // Mark this step as displayed
     } else {
         updateWarpStars();
-        lastDisplayedStoryStep = -1;
+        // Reset lastDisplayedStoryStep when entering warp, so the next stop visual is prepared fully
+        lastDisplayedStoryStep = -1; 
     }
 }
 
