@@ -112,7 +112,7 @@ bool soundSettingsPopupActive = false;
 
 // Change the TFT_LED pin definition
 #define TFT_LED 13  
-#define VIBRATION_PIN 4  // Vibration motor pin
+#define VIBRATION_PIN 5  // Vibration motor pin
 
 // Haptic feedback levels
 enum class HapticLevel {
@@ -209,7 +209,9 @@ uint16_t COLOR_ERROR;
 
 uint16_t BG_COLOR = COLOR_BG;
 constexpr uint16_t STAR_COLOR = COLOR_STAR;
-
+bool ledEnabled = true;  // LED state tracking
+bool vibrationEnabled = true;  // Vibration state tracking
+int settingsSelection = 0;  // 0 for sound, 1 for LED, 2 for Vibration, 3 for Power Off
 
 // --- Color Variable Initialization ---
 void initColors() {
@@ -248,13 +250,32 @@ void hapticFeedback(float warpFactor) {
   static unsigned long lastPatternTime = 0;
   static unsigned long patternDuration = 0;
   static bool pulseState = false;
-  static int substate = 0; // For turbulence/double-pulse
+  static int substate = 0; // For complex patterns
+  static unsigned long warpStartTime = 0;
+  static float lastWarpFactor = 0.0f;
+  static unsigned long lastHarmonicTime = 0;
+  static int harmonicPhase = 0;
+  static unsigned long lastInstabilityTime = 0;
+  static bool inInstability = false;
+  static unsigned long instabilityEndTime = 0;
+  
   unsigned long now = millis();
 
-  // --- Haptic Feedback Logic (Non-Blocking) ---
-  // This function is designed to be called frequently in the main loop.
-  // It uses state variables and time checks (millis()) to manage the vibration
-  // motor pattern without blocking the main program loop.
+  // Check if vibration is enabled
+  if (!vibrationEnabled) {
+    // Ensure vibration is off if disabled
+    if (digitalRead(VIBRATION_PIN) == HIGH) {
+      digitalWrite(VIBRATION_PIN, LOW);
+    }
+    // Reset internal state when vibration is off
+    pulseState = false;
+    substate = 0;
+    // Do not update lastWarpFactor here to detect re-engagement properly
+    return; // Exit the function early
+  }
+
+  // --- Enhanced Haptic Feedback Logic ---
+  // This creates a more realistic warp drive experience with multiple vibration layers
 
   // Determine target vibration intensity (0.0 to 1.0) based on warp factor or override
   float targetIntensity;
@@ -265,58 +286,242 @@ void hapticFeedback(float warpFactor) {
     targetIntensity = constrain(warpFactor, 0.0f, 1.0f);
   }
 
+  // Track warp engagement/disengagement for startup sequences
+  bool warpJustEngaged = (warpFactor > 0.1f && lastWarpFactor <= 0.1f);
+  bool warpJustDisengaged = (warpFactor <= 0.1f && lastWarpFactor > 0.1f);
+  
+  if (warpJustEngaged) {
+    warpStartTime = now;
+    substate = 0; // Reset to startup sequence
+    Serial.println("Warp drive engaged - starting haptic sequence");
+  }
+  
   // If target intensity is very low, ensure vibration is off
-  if (targetIntensity < 0.05f) { // Use a small threshold
+  if (targetIntensity < 0.05f) {
     digitalWrite(VIBRATION_PIN, LOW);
     pulseState = false;
     substate = 0;
+    lastWarpFactor = warpFactor;
     return;
   }
 
-  // Interpolate ON/OFF durations based on warpFactor
-  // At low warp: ON 20-40ms, OFF 400-300ms
-  // At high warp: ON 200-500ms, OFF 40-20ms
-  int onMin = map(warpFactor * 1000, 0, 1000, 20, 200);
-  int onMax = map(warpFactor * 1000, 0, 1000, 40, 500);
-  int offMin = map(warpFactor * 1000, 0, 1000, 400, 40);
-  int offMax = map(warpFactor * 1000, 0, 1000, 300, 20);
-
-  // As warpFactor increases, add more turbulence and surges
-  float turbulenceChance = 0.0f;
-  if (warpFactor > 0.3f) turbulenceChance = (warpFactor - 0.3f) * 1.1f; // up to ~0.8 at max
-
-  if (now - lastPatternTime > patternDuration) {
-    if (substate == 1 && !pulseState) {
-      // Double pulse turbulence
-      pulseState = true;
-      patternDuration = random(onMin, onMax / 2);
-      digitalWrite(VIBRATION_PIN, HIGH);
-      substate = 0;
-    } else {
-      pulseState = !pulseState;
-      if (pulseState) {
-        // ON duration
-        patternDuration = random(onMin, onMax);
-        // At high warp, mostly ON with brief surges
-        if (warpFactor > 0.7f && random(100) < 70) {
-          // Long ON, simulate surge
-          patternDuration += random(60, 160);
-        }
-        // Occasionally do a double pulse for turbulence
-        if (random(1000) < (turbulenceChance * 1000)) {
-          substate = 1;
-        }
-      } else {
-        // OFF duration
-        patternDuration = random(offMin, offMax);
-        // At high warp, OFF is very brief
-        if (warpFactor > 0.7f) patternDuration = random(20, 60);
+  // Calculate time since warp engagement for startup effects
+  unsigned long timeSinceWarpStart = now - warpStartTime;
+  
+  // --- WARP DRIVE STARTUP SEQUENCE (first 3 seconds) ---
+  if (timeSinceWarpStart < 3000 && warpFactor > 0.1f) {
+    if (timeSinceWarpStart < 500) {
+      // Initial engine ignition - sharp bursts
+      if (now - lastPatternTime > 80) {
+        pulseState = !pulseState;
+        patternDuration = pulseState ? 40 : 120;
+        lastPatternTime = now;
       }
-      digitalWrite(VIBRATION_PIN, pulseState ? HIGH : LOW);
+    } else if (timeSinceWarpStart < 1500) {
+      // Engine spinning up - increasing frequency
+      int spinUpSpeed = map(timeSinceWarpStart, 500, 1500, 200, 50);
+      if (now - lastPatternTime > spinUpSpeed) {
+        pulseState = !pulseState;
+        patternDuration = pulseState ? spinUpSpeed/3 : spinUpSpeed*2/3;
+        lastPatternTime = now;
+      }
+    } else {
+      // Transition to steady state - decreasing intensity bursts
+      int transitionSpeed = map(timeSinceWarpStart, 1500, 3000, 80, 150);
+      if (now - lastPatternTime > transitionSpeed) {
+        pulseState = !pulseState;
+        patternDuration = pulseState ? transitionSpeed/2 : transitionSpeed/2;
+        lastPatternTime = now;
+      }
     }
-    lastPatternTime = now;
+    digitalWrite(VIBRATION_PIN, pulseState ? HIGH : LOW);
+    lastWarpFactor = warpFactor;
+    return;
   }
 
+  // --- MAIN WARP DRIVE OPERATION ---
+  
+  // Enhanced speed-based vibration system
+  int baseOnTime, baseOffTime;
+  
+  if (warpFactor < 0.2f) {
+    // Very low warp - subtle idle engine rumble
+    baseOnTime = map(warpFactor * 1000, 100, 200, 15, 25);    // Very short pulses
+    baseOffTime = map(warpFactor * 1000, 100, 200, 800, 400); // Long gaps - slow idle
+  } else if (warpFactor < 0.4f) {
+    // Low warp - gentle engine rhythm
+    baseOnTime = map(warpFactor * 1000, 200, 400, 25, 40);    // Short to medium pulses
+    baseOffTime = map(warpFactor * 1000, 200, 400, 400, 150); // Medium gaps
+  } else if (warpFactor < 0.7f) {
+    // Medium warp - steady engine operation
+    baseOnTime = map(warpFactor * 1000, 400, 700, 40, 70);    // Medium pulses
+    baseOffTime = map(warpFactor * 1000, 400, 700, 150, 60);  // Shorter gaps
+  } else if (warpFactor < 0.9f) {
+    // High warp - intense engine operation
+    baseOnTime = map(warpFactor * 1000, 700, 900, 70, 120);   // Long intense pulses
+    baseOffTime = map(warpFactor * 1000, 700, 900, 60, 25);   // Very short gaps
+  } else {
+    // Maximum warp - overwhelming engine power
+    baseOnTime = map(warpFactor * 1000, 900, 1000, 120, 200); // Very long pulses
+    baseOffTime = map(warpFactor * 1000, 900, 1000, 25, 10);  // Minimal gaps
+  }
+   
+  // Engine harmonics - secondary vibration layer
+  bool harmonicActive = false;
+  // Scale harmonic frequency with warp speed
+  int harmonicInterval = map(warpFactor * 1000, 100, 1000, 300, 80); // Slower at low speed
+  if (warpFactor > 0.2f && now - lastHarmonicTime > harmonicInterval) {
+    harmonicPhase = (harmonicPhase + 1) % 8;
+    lastHarmonicTime = now;
+    
+    // More frequent harmonics at higher speeds
+    bool shouldHarmonic = false;
+    if (warpFactor < 0.4f) {
+      shouldHarmonic = (harmonicPhase == 3 || harmonicPhase == 7); // Rare at low speed
+    } else if (warpFactor < 0.7f) {
+      shouldHarmonic = (harmonicPhase == 2 || harmonicPhase == 5); // Medium frequency
+    } else {
+      shouldHarmonic = (harmonicPhase == 1 || harmonicPhase == 3 || harmonicPhase == 5); // Frequent at high speed
+    }
+    
+    if (shouldHarmonic) {
+      harmonicActive = true;
+    }
+  }
+  
+  // Warp turbulence - increases with higher warp factors
+  float turbulenceChance = 0.0f;
+  if (warpFactor > 0.3f) {
+    // More dramatic turbulence scaling
+    float turbulenceBase = (warpFactor - 0.3f) / 0.7f; // 0 to 1 range
+    turbulenceChance = turbulenceBase * turbulenceBase * 2.0f; // Exponential increase
+  }
+   
+  // Speed-based stress harmonics - rapid micro-pulses
+  bool stressHarmonics = false;
+  if (warpFactor > 0.6f) {
+    int stressInterval = map(warpFactor * 1000, 600, 1000, 400, 150); // Faster at higher speeds
+    int stressDuration = map(warpFactor * 1000, 600, 1000, 30, 100);  // Longer at higher speeds
+    stressHarmonics = ((now % stressInterval) < stressDuration);
+  }
+  
+  // Engine micro-vibrations for realism at low speeds
+  bool microVibrations = false;
+  if (warpFactor < 0.3f && (now % 100) < 5) {
+    microVibrations = true; // Brief micro-pulses for idle engine feel
+  }
+  
+  // --- WARP INSTABILITIES ---
+  // Random instability events that create realistic "warp bubble fluctuations"
+  if (warpFactor > 0.5f && !inInstability && now - lastInstabilityTime > 5000) {
+    if (random(1000) < (warpFactor - 0.5f) * 200) { // Higher warp = more instabilities
+      inInstability = true;
+      instabilityEndTime = now + random(200, 800); // 200-800ms instability
+      lastInstabilityTime = now;
+      Serial.println("Warp instability detected");
+    }
+  }
+  
+  if (inInstability && now < instabilityEndTime) {
+    // Chaotic vibration during instability
+    if (now - lastPatternTime > random(20, 60)) {
+      pulseState = !pulseState;
+      patternDuration = random(15, 45);
+      lastPatternTime = now;
+    }
+  } else {
+    inInstability = false;
+    
+    // --- NORMAL WARP OPERATION PATTERNS ---
+    if (now - lastPatternTime > patternDuration) {
+      
+      if (microVibrations && !pulseState && warpFactor < 0.3f) {
+        // Add subtle micro-vibrations at low speeds
+        pulseState = true;
+        patternDuration = random(8, 15); // Very brief micro-pulse
+        substate = 0;
+      } else 
+      if (stressHarmonics && substate < 3) {
+        // High warp stress - rapid micro-pulses
+        pulseState = !pulseState;
+        // Scale stress pulse timing with warp speed
+        int stressOnTime = map(warpFactor * 1000, 700, 1000, 15, 8);   // Faster at higher speeds
+        int stressOffTime = map(warpFactor * 1000, 700, 1000, 20, 5);  // Much faster gaps
+        patternDuration = pulseState ? random(stressOnTime-3, stressOnTime+5) : random(stressOffTime-2, stressOffTime+3);
+        substate++;
+      } else if (harmonicActive && !pulseState) {
+        // Harmonic extension - longer pulse
+        pulseState = true;
+        // Scale harmonic extension with warp speed
+        int harmonicExtension = map(warpFactor * 1000, 200, 1000, 10, 60);
+        patternDuration = baseOnTime + random(harmonicExtension/2, harmonicExtension);
+        harmonicActive = false;
+      } else if (random(1000) < (turbulenceChance * 1000) && !pulseState) {
+        // Turbulence burst - irregular pattern
+        pulseState = true;
+        // More dramatic turbulence variation at higher speeds
+        int turbulenceVariation = map(warpFactor * 1000, 300, 1000, 5, 50);
+        patternDuration = baseOnTime + random(-turbulenceVariation/2, turbulenceVariation);
+        substate = random(1, 4); // Set up for potential multi-pulse
+      } else if (substate > 0 && pulseState) {
+        // Multi-pulse turbulence continuation
+        pulseState = false;
+        // Scale multi-pulse gaps with speed
+        int multiPulseGap = map(warpFactor * 1000, 300, 1000, 40, 15);
+        patternDuration = random(multiPulseGap-5, multiPulseGap+10);
+        substate--;
+      } else {
+        // Standard engine rhythm
+        pulseState = !pulseState;
+        if (pulseState) {
+          patternDuration = baseOnTime;
+          // Speed-scaled power surges
+          if (warpFactor > 0.7f) {
+            int surgeChance = map(warpFactor * 1000, 700, 1000, 5, 25); // More frequent at higher speeds
+            if (random(100) < surgeChance) {
+              int surgeExtension = map(warpFactor * 1000, 700, 1000, 20, 80);
+              patternDuration += random(surgeExtension/2, surgeExtension);
+            }
+          }
+        } else {
+          patternDuration = baseOffTime;
+          // Speed-scaled stabilization pauses
+          if (warpFactor > 0.5f) {
+            int pauseChance = map(warpFactor * 1000, 500, 1000, 3, 12);
+            if (random(100) < pauseChance) {
+              int pauseExtension = map(warpFactor * 1000, 500, 1000, 20, 60);
+              patternDuration += random(pauseExtension/2, pauseExtension);
+            }
+          }
+        }
+        substate = 0;
+      }
+      lastPatternTime = now;
+    }
+  }
+
+  // --- WARP FIELD RESONANCE ---
+  // Add subtle field resonance effects at specific warp factors
+  bool resonanceActive = false;
+  // More resonance points for realistic engine behavior
+  float resonanceFactors[] = {0.15f, 0.3f, 0.45f, 0.6f, 0.75f, 0.85f, 0.95f}; // Critical warp thresholds
+  for (int i = 0; i < 4; i++) {
+    if (abs(warpFactor - resonanceFactors[i]) < 0.05f) {
+      resonanceActive = true;
+      // Speed-based resonance flutter
+      int resonanceInterval = map(warpFactor * 1000, 150, 950, 500, 200);
+      int resonanceDuration = map(warpFactor * 1000, 150, 950, 30, 80);
+      if ((now % resonanceInterval) < resonanceDuration) {
+        pulseState = true;
+        int resonancePulse = map(warpFactor * 1000, 150, 950, 35, 15);
+        patternDuration = min(patternDuration, (unsigned long)resonancePulse);
+      }
+      break;
+    }
+  }
+
+  digitalWrite(VIBRATION_PIN, pulseState ? HIGH : LOW);
+  lastWarpFactor = warpFactor;
 }
 
 // Frame timing
@@ -477,9 +682,6 @@ SpriteHandle quizHandle = {0};
 // Create an instance of the StoryMode class
 StoryMode storyModeManager; // Default constructor will be called
 
-// Add these near other global variables
-bool ledEnabled = true;  // LED state tracking
-int settingsSelection = 0;  // 0 for sound, 1 for LED, 2 for Power Off
 
 void setup() {
   pinMode(VIBRATION_PIN, OUTPUT);
@@ -595,6 +797,7 @@ void initializeSystem() {
   // Draw menu screen
   drawMenu();
   setLedModeMenu(currentMenuItem, MENU_ITEMS); // Initialize LED for menu
+  startMenuBackgroundMusic(); // Start menu music when initializing system
   
   // Initialize object tracking
   memset(objectsShown, false, sizeof(objectsShown));
@@ -654,15 +857,6 @@ void loop() {
         // Update menu background music (handles playing through one loop)
         updateMenuBackgroundMusic();
         
-        // Add timer to play menu music intermittently
-        // static unsigned long lastMenuMusicStartTime = 0; // Moved outside switch
-        // const unsigned long MUSIC_INTERVAL_MS = 20000; // Play music every 20 seconds if not playing // Moved outside switch
-        
-        if (!menuMusicPlaying && (millis() - lastMenuMusicStartTime >= MUSIC_INTERVAL_MS)) {
-          startMenuBackgroundMusic();
-          lastMenuMusicStartTime = millis(); // Reset timer
-        }
-
         // setLedModeMenu(currentMenuItem, MENU_ITEMS); // Already set when menu is drawn
         break;
         
@@ -690,6 +884,9 @@ void loop() {
                 // storyModeManager.exit() was already called internally by the update/processInput methods
                 currentState = State::MENU;
                 setLedModeMenu(currentMenuItem, MENU_ITEMS); // Set LED for menu
+                // Play menu transition sound
+                playStateTransitionSound("MENU");
+                startMenuBackgroundMusic(); // Start music when returning to menu from Story
                 tft.fillScreen(BG_COLOR); // Ensure screen is cleared before drawing menu
                 drawMenu();
             } else {
@@ -986,6 +1183,7 @@ void processInput() {
         tft.fillScreen(BG_COLOR);
         delay(10); // Small delay to ensure clean screen
         drawMenu();
+        startMenuBackgroundMusic(); // Start music when returning to menu from Discovery
         return;
       }
     } else if (digitalRead(BUTTON_PIN) == HIGH) {
@@ -2238,8 +2436,8 @@ void processMenuInput() {
   // Handle settings popup if active
   if (soundSettingsPopupActive) {
     // Use pot value to select between Sound, LED, and Power Off
-    // There are 3 options (0, 1, 2)
-    int numSettingsOptions = 3;
+    // There are 4 options: 0=Sound,1=LED,2=Vibration,3=Power Off
+    int numSettingsOptions = 4;
     int potRange = 4095 / numSettingsOptions;
     int newSelection = potValue / potRange;
     newSelection = constrain(newSelection, 0, numSettingsOptions - 1);
@@ -2258,23 +2456,20 @@ void processMenuInput() {
         
         // Perform action based on selected setting
         if (settingsSelection == 0) {
-          // Toggle Sound
           toggleSound();
         } else if (settingsSelection == 1) {
-          // Toggle LED
           ledEnabled = !ledEnabled;
         } else if (settingsSelection == 2) {
-          // Confirm Power Off
-          // Close settings popup before powering off
-          toggleSoundSettingsPopup(); // This will redraw the menu background
-          // Give a small delay for redraw before power off sequence starts
+          vibrationEnabled = !vibrationEnabled;
+        } else if (settingsSelection == 3) {
+          toggleSoundSettingsPopup();
           delay(100);
-          powerOff(); // Call the power off function
-          return; // Exit processing as we are powering off
+          powerOff();
+          return;
         }
         
-        // Redraw the popup to show new state (unless powering off)
-        if (settingsSelection != 2) {
+        // Redraw the popup to show new state
+        if (settingsSelection != 3) {
           drawSoundSettingsPopup();
         }
       }
@@ -2475,6 +2670,7 @@ void updateQuizMode() {
       tft.fillScreen(BG_COLOR);
       currentState = State::MENU;
       setLedModeMenu(currentMenuItem, MENU_ITEMS);
+      startMenuBackgroundMusic(); // Start music when returning to menu from Quiz
       drawMenu();
       return;
     }
@@ -2801,13 +2997,13 @@ void hideFactPopup() {
 void drawSoundSettingsPopup() {
   // Fixed dimensions for elements
   int headerHeight = 20;
-  int toggleHeight = 30;
+  int toggleHeight = 28;
   int toggleWidth = SCREEN_WIDTH * 0.7; // Match toggle width to previous calculation
-  int toggleLabelHeight = 15; // Estimate space needed for label above toggle
-  int toggleSpacing = 15;  // Space between toggles
+  int toggleLabelHeight = 14; // Estimate space needed for label above toggle
+  int toggleSpacing = 12;  // Space between toggles
   
   // New: Dimensions for the Power Off item
-  int powerOffHeight = 30; // Height of the Power Off button area
+  int powerOffHeight = 28; // Height of the Power Off button area
   int powerOffSpacing = 15; // Space before Power Off item
 
   int instructionsLineHeight = 10; // Estimate line height for size 1 text
@@ -2820,8 +3016,8 @@ void drawSoundSettingsPopup() {
   int sidePadding = SCREEN_WIDTH * 0.075; // Match popupX calculation (SCREEN_WIDTH - popupWidth) / 2
   
   // Calculate total required height for the content (labels, toggles, spacing, Power Off)
-  int contentHeight = (toggleLabelHeight + toggleHeight) * 2 + toggleSpacing + // Two toggles + spacing + labels
-                      powerOffSpacing + powerOffHeight; // Power Off item + spacing
+  int contentHeight = (toggleLabelHeight + toggleHeight) * 3 + toggleSpacing * 2
+                      + powerOffSpacing + powerOffHeight; // Two toggles + spacing + labels
   
   // Calculate total popup height
   int popupHeight = headerHeight + topPadding + contentHeight + instructionsBlockHeight + bottomPadding;
@@ -2864,12 +3060,17 @@ void drawSoundSettingsPopup() {
   drawSettingsToggle(popupX, ledToggleY, popupWidth, toggleWidth, toggleHeight, 
                     "LED", ledEnabled, settingsSelection == 1);
 
+  // Draw Vibration Toggle
+  int vibToggleY = ledToggleY + toggleHeight + toggleSpacing + toggleLabelHeight; // Position below LED toggle + spacing + its label space
+  drawSettingsToggle(popupX, vibToggleY, popupWidth, toggleWidth, toggleHeight,
+                     "VIBRATION", vibrationEnabled, settingsSelection == 2);
+
   // Draw Power Off item
-  int powerOffY = ledToggleY + toggleHeight + powerOffSpacing; // Position below LED toggle + spacing
+  int powerOffY = vibToggleY + toggleHeight + powerOffSpacing; // Position below LED toggle + spacing
   int powerOffX = popupX + (popupWidth - toggleWidth) / 2; // Align with toggles
   
   // Draw highlight if selected
-  if (settingsSelection == 2) {
+  if (settingsSelection == 3) {
      tft.drawRoundRect(powerOffX-2, powerOffY-2, toggleWidth+4, powerOffHeight+4, 15, COLOR_HIGHLIGHT);
   }
   // Draw background box for Power Off
@@ -2879,7 +3080,7 @@ void drawSoundSettingsPopup() {
   // Draw Power Off text centered in its box
   tft.setTextDatum(MC_DATUM);
   tft.setTextSize(1);
-  tft.setTextColor(settingsSelection == 2 ? COLOR_HIGHLIGHT : COLOR_TEXT);
+  tft.setTextColor(settingsSelection == 3 ? COLOR_HIGHLIGHT : COLOR_TEXT);
   tft.drawString("POWER OFF", powerOffX + toggleWidth/2, powerOffY + powerOffHeight/2);
   
   // Add instructions (split into two lines)
