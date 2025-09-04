@@ -1,0 +1,248 @@
+================================================================================
+                    COSMIC KNOBULATOR - ESP32 TFT SETUP INFO
+================================================================================
+
+This file contains all pin configurations, hardware setup, and library information
+for the Cosmic Knobulator ESP32 TFT project. Use this as a reference when creating
+new projects with the same hardware setup.
+
+================================================================================
+HARDWARE COMPONENTS
+================================================================================
+
+Main Controller:
+- ESP32-S3 development board with PSRAM (required for smooth graphics)
+- 2" 240×320 TFT SPI display (ST7789 driver)
+- WS2812B addressable LED strip (2 LEDs)
+- Vibration motor
+- 10k potentiometer (knob)
+- Momentary pushbutton
+- Breadboard, jumper wires
+- (Optional) 3D-printed or DIY kid-safe enclosure
+
+================================================================================
+PIN CONFIGURATION - ESP32-S3
+================================================================================
+
+TFT DISPLAY (ST7789 Driver):
+- TFT_CS    = GPIO 8   (Chip Select)
+- TFT_RST   = GPIO 10  (Reset)
+- TFT_DC    = GPIO 9   (Data/Command)
+- TFT_MOSI  = GPIO 11  (Data Out)
+- TFT_SCLK  = GPIO 12  (Clock)
+- TFT_LED   = GPIO 13  (Backlight control)
+
+USER INPUT:
+- BUTTON_PIN        = GPIO 1   (Main button - INPUT_PULLUP)
+- SECOND_BUTTON_PIN = GPIO 3   (Secondary button - INPUT_PULLUP)
+- POT_PIN           = GPIO 7   (Potentiometer - ADC1_CHANNEL_7)
+
+OUTPUT DEVICES:
+- LED_PIN      = GPIO 2   (WS2812B LED strip data line)
+- VIBRATION_PIN = GPIO 5  (Vibration motor control)
+- BUZZER_PIN    = GPIO 6  (Buzzer/speaker)
+
+POWER:
+- VCC = 3.3V
+- GND = Ground
+
+================================================================================
+TFT_eSPI LIBRARY CONFIGURATION
+================================================================================
+
+Driver Settings (User_Setup.h):
+- #define ST7789_DRIVER
+- #define TFT_RGB_ORDER TFT_BGR
+- #define TFT_WIDTH 240
+- #define TFT_HEIGHT 320
+- #define USE_HSPI_PORT
+- #define SPI_FREQUENCY 80000000
+- #define SPI_READ_FREQUENCY 20000000
+- #define SPI_TOUCH_FREQUENCY 2500000
+
+Pin Definitions (User_Setup.h):
+- #define TFT_CS 8
+- #define TFT_RST 10
+- #define TFT_DC 9
+- #define TFT_MOSI 11
+- #define TFT_SCLK 12
+
+Fonts Loaded:
+- LOAD_GLCD   (Font 1 - Original Adafruit 8 pixel font)
+- LOAD_FONT2  (Font 2 - Small 16 pixel high font)
+- LOAD_FONT4  (Font 4 - Medium 26 pixel high font)
+- LOAD_FONT6  (Font 6 - Large 48 pixel font)
+- LOAD_FONT7  (Font 7 - 7 segment 48 pixel font)
+- LOAD_FONT8  (Font 8 - Large 75 pixel font)
+- LOAD_GFXFF  (FreeFonts - 48 Adafruit_GFX free fonts)
+- SMOOTH_FONT (Smooth font support)
+
+================================================================================
+FASTLED LIBRARY CONFIGURATION
+================================================================================
+
+LED Strip Settings (led_animations.h):
+- LED_PIN = 2
+- NUM_LEDS = 2
+- BRIGHTNESS = 64
+- LED_TYPE = WS2812B
+- COLOR_ORDER = GRB
+
+================================================================================
+AUDIO CONFIGURATION
+================================================================================
+
+Buzzer Settings (buzzer_sounds.h):
+- BUZZER_PIN = 6
+- VOLUME_FACTOR = 0.5f (50% volume)
+
+Note Frequencies:
+- Complete set from NOTE_B0 (31Hz) to NOTE_C7 (2093Hz)
+- Includes all sharps and flats for music composition
+
+================================================================================
+SOFTWARE LIBRARIES REQUIRED
+================================================================================
+
+Arduino Libraries:
+1. TFT_eSPI (by Bodmer) - TFT display driver
+2. FastLED (by Daniel Garcia) - WS2812B LED control
+3. Arduino.h - Core Arduino functions
+
+Additional Dependencies:
+- PSRAM support (built into ESP32-S3)
+- SpriteManager (custom class for sprite management)
+
+================================================================================
+ARDUINO IDE SETUP
+================================================================================
+
+Board Configuration:
+- Board: ESP32S3 Dev Module
+- Upload Speed: 921600
+- CPU Frequency: 240MHz (WiFi/BT)
+- Flash Mode: QIO
+- Flash Size: 16MB (128Mb)
+- Partition Scheme: Huge APP (3MB No OTA/1MB SPIFFS)
+- PSRAM: OPI PSRAM
+- Arduino Runs On: Core 1
+- Events Run On: Core 1
+
+================================================================================
+KEY FEATURES & MODES
+================================================================================
+
+Display Modes:
+- MENU: Main navigation menu
+- DISCOVERY: Space exploration with celestial objects
+- WARP: Warp speed effects with star streaks
+- QUIZ: Interactive science quiz mode
+- STORY: Step-by-step cosmic adventure
+
+Celestial Objects:
+- Stars (twinkling, flaring)
+- Planets (with rings, clouds)
+- Nebulae (swirling gas clouds)
+- Galaxies (spiral and elliptical)
+- Solar Systems (orbiting planets)
+- Asteroid Fields
+- Black Holes (with accretion disks)
+- Pulsars (spinning neutron stars)
+- Supernovae (exploding stars)
+- Comets (with glowing tails)
+- Binary Stars
+- Space Stations
+
+================================================================================
+POWER MANAGEMENT
+================================================================================
+
+Deep Sleep:
+- Long press (3 seconds) on main button to enter deep sleep
+- Wake up with button press
+- Vibration motor turns off during sleep
+- TFT backlight controlled via TFT_LED pin
+
+================================================================================
+MEMORY USAGE
+================================================================================
+
+PSRAM Usage:
+- SpriteManager uses PSRAM for off-screen buffers
+- TFT_eSPI sprites can use PSRAM for complex animations
+- Reduces RAM usage and prevents crashes
+
+Stack Size:
+- CONFIG_ARDUINO_LOOP_STACK_SIZE = 16384 (increased for complex operations)
+
+================================================================================
+WIRING DIAGRAM REFERENCE
+================================================================================
+
+TFT Display:
+    TFT    ESP32-S3
+    ---    --------
+    CS  -> GPIO 8
+    RST -> GPIO 10
+    DC  -> GPIO 9
+    MOSI-> GPIO 11
+    SCLK-> GPIO 12
+    LED -> GPIO 13
+    VCC -> 3.3V
+    GND -> GND
+
+User Controls:
+    Component    ESP32-S3
+    ---------    --------
+    Button 1  -> GPIO 1 (with 10k pullup)
+    Button 2  -> GPIO 3 (with 10k pullup)
+    Pot       -> GPIO 7 (ADC)
+
+Outputs:
+    Component    ESP32-S3
+    ---------    --------
+    LED Strip -> GPIO 2
+    Vibration -> GPIO 5
+    Buzzer    -> GPIO 6
+
+================================================================================
+TROUBLESHOOTING TIPS
+================================================================================
+
+Common Issues:
+1. Display not working: Check TFT_eSPI User_Setup.h configuration
+2. LEDs not working: Verify FastLED pin and LED count
+3. Buttons not responding: Check INPUT_PULLUP configuration
+4. Potentiometer erratic: Ensure stable 3.3V supply
+5. Memory issues: Enable PSRAM in board configuration
+6. Upload fails: Try different upload speed or hold BOOT button
+
+Performance Optimization:
+- Use PSRAM for large sprites
+- Minimize redraws with dirty rectangle updates
+- Use hardware SPI for TFT communication
+- Optimize LED update frequency
+
+================================================================================
+PROJECT STRUCTURE
+================================================================================
+
+Main Files:
+- warpdrive_esp32_tft.ino (main program)
+- User_Setup.h (TFT_eSPI configuration)
+- led_animations.h/.cpp (LED control)
+- buzzer_sounds.h/.cpp (audio control)
+- sprite_manager.h/.cpp (sprite management)
+
+Celestial Object Files:
+- star.h, planet.h, nebula.h, galaxy_and_asteroid.h
+- blackhole.h, pulsar.h, supernova.h, comet.h
+- binarystar.h, spacestation.h, solar_system.h
+- And many more...
+
+================================================================================
+CREATED: $(date)
+PROJECT: Cosmic Knobulator - Universe Explorer Toy
+VERSION: ESP32-S3 TFT Setup
+================================================================================
+

@@ -1,0 +1,1280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cosmic Knobulator - Starfield Warp Drive</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: #000;
+            overflow: hidden;
+            font-family: 'Courier New', monospace;
+            color: #fff;
+            cursor: none;
+            margin: 0;
+            padding: 0;
+        }
+
+        #gameCanvas {
+            display: block;
+            background: #000; /* Match Arduino TFT_BLACK exactly */
+            image-rendering: pixelated; /* Crisp pixel rendering like TFT */
+            image-rendering: -moz-crisp-edges;
+            image-rendering: crisp-edges;
+        }
+
+        .ui-overlay {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            z-index: 100;
+            pointer-events: none;
+        }
+
+        .warp-speed {
+            background: rgba(0, 0, 0, 0.7);
+            padding: 10px 15px;
+            border-radius: 20px;
+            border: 2px solid #00ffff;
+            box-shadow: 0 0 20px rgba(0, 255, 255, 0.5);
+            backdrop-filter: blur(10px);
+        }
+
+        .warp-speed h3 {
+            color: #00ffff;
+            font-size: 14px;
+            margin-bottom: 5px;
+            text-shadow: 0 0 10px #00ffff;
+        }
+
+        .speed-bar {
+            width: 200px;
+            height: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .speed-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #00ffff, #0080ff, #ff0080);
+            border-radius: 4px;
+            transition: width 0.1s ease;
+            box-shadow: 0 0 20px rgba(0, 255, 255, 0.8);
+        }
+
+        .instructions {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.8);
+            padding: 15px 25px;
+            border-radius: 25px;
+            border: 1px solid #333;
+            text-align: center;
+            font-size: 14px;
+            color: #ccc;
+            backdrop-filter: blur(10px);
+        }
+
+        .instructions strong {
+            color: #00ffff;
+        }
+
+        .star-count {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 10px 15px;
+            border-radius: 20px;
+            border: 1px solid #333;
+            font-size: 12px;
+            color: #ccc;
+        }
+
+        .loading {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            z-index: 1000;
+        }
+
+        .loading h1 {
+            color: #00ffff;
+            font-size: 2em;
+            margin-bottom: 20px;
+            text-shadow: 0 0 20px #00ffff;
+        }
+
+        .loading .spinner {
+            width: 50px;
+            height: 50px;
+            border: 3px solid #333;
+            border-top: 3px solid #00ffff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .custom-cursor {
+            position: fixed;
+            width: 20px;
+            height: 20px;
+            background: radial-gradient(circle, #00ffff 0%, transparent 70%);
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 10000;
+            mix-blend-mode: screen;
+            transition: transform 0.1s ease;
+        }
+
+        .discovery-ui {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.9);
+            border: 2px solid #00ffff;
+            border-radius: 20px;
+            padding: 30px;
+            text-align: center;
+            backdrop-filter: blur(15px);
+            box-shadow: 0 0 50px rgba(0, 255, 255, 0.3);
+            opacity: 0;
+            transition: opacity 0.5s ease;
+            pointer-events: none;
+        }
+
+        .discovery-ui.visible {
+            opacity: 1;
+            pointer-events: all;
+        }
+
+        .discovery-ui h2 {
+            color: #00ffff;
+            font-size: 2em;
+            margin-bottom: 15px;
+            text-shadow: 0 0 20px #00ffff;
+        }
+
+        .discovery-ui .object-info {
+            color: #ccc;
+            font-size: 14px;
+            line-height: 1.6;
+            margin-bottom: 20px;
+            max-width: 400px;
+        }
+
+        .discovery-ui .continue-btn {
+            background: linear-gradient(45deg, #00ffff, #0080ff);
+            border: none;
+            padding: 12px 25px;
+            border-radius: 25px;
+            color: #000;
+            font-weight: bold;
+            cursor: pointer;
+            transition: transform 0.2s ease;
+        }
+
+        .discovery-ui .continue-btn:hover {
+            transform: scale(1.05);
+        }
+
+        .shooting-star {
+            position: absolute;
+            width: 2px;
+            height: 2px;
+            background: white;
+            border-radius: 50%;
+            box-shadow: 0 0 10px white;
+        }
+
+        .mode-indicator {
+            position: fixed;
+            top: 70px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 8px 15px;
+            border-radius: 15px;
+            border: 1px solid #333;
+            font-size: 12px;
+            color: #00ffff;
+            text-transform: uppercase;
+        }
+    </style>
+</head>
+<body>
+    <div class="loading" id="loading">
+        <h1>Cosmic Knobulator</h1>
+        <div class="spinner"></div>
+        <p>Initializing Warp Drive...</p>
+    </div>
+
+    <canvas id="gameCanvas"></canvas>
+    
+    <div class="ui-overlay">
+        <div class="warp-speed">
+            <h3>WARP SPEED</h3>
+            <div class="speed-bar">
+                <div class="speed-fill" id="speedFill"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="star-count" id="starCount">
+        Stars: 0
+    </div>
+
+    <div class="mode-indicator" id="modeIndicator">
+        Normal Mode
+    </div>
+
+    <div class="instructions">
+        <strong>Scroll</strong> to engage warp drive • <strong>Move mouse</strong> to navigate • <strong>Click</strong> to reset • <strong>Space</strong> for discovery
+    </div>
+
+    <div class="discovery-ui" id="discoveryUI">
+        <h2 id="objectName">Unknown Object</h2>
+        <div class="object-info" id="objectInfo">
+            Analyzing celestial object...
+        </div>
+        <button class="continue-btn" onclick="closeDiscovery()">Continue Exploring</button>
+    </div>
+
+    <div class="custom-cursor" id="customCursor"></div>
+
+    <script>
+        // Game States (matching Arduino code)
+        const GameState = {
+            NORMAL: 'normal',
+            WARP: 'warp',
+            DISCOVERY: 'discovery'
+        };
+
+        // Celestial Object Types (matching Arduino code)
+        const CelestialObjectType = {
+            STAR: 'star',
+            PLANET: 'planet',
+            NEBULA: 'nebula',
+            GALAXY: 'galaxy',
+            SOLAR_SYSTEM: 'solar_system',
+            ASTEROID_FIELD: 'asteroid_field',
+            BLACK_HOLE: 'black_hole',
+            PULSAR: 'pulsar',
+            SUPERNOVA: 'supernova',
+            COMET: 'comet',
+            BINARY_STAR: 'binary_star',
+            SPACE_STATION: 'space_station',
+            JEWEL_BOX: 'jewel_box',
+            OMEGA_CENTAURI: 'omega_centauri',
+            ORION_NEBULA: 'orion_nebula',
+            PLEIADES: 'pleiades',
+            RING_NEBULA: 'ring_nebula',
+            DOUBLE_CLUSTER: 'double_cluster'
+        };
+
+        // Celestial Object Data (matching Arduino facts)
+        const CelestialObjectData = {
+            [CelestialObjectType.STAR]: {
+                name: "STAR",
+                info: "Stars are massive, luminous spheres of plasma held together by gravity. They shine by nuclear fusion, converting hydrogen to helium in their cores."
+            },
+            [CelestialObjectType.PLANET]: {
+                name: "PLANET",
+                info: "Planets are celestial bodies orbiting stars. They vary from rocky terrestrial worlds to massive gas giants with complex atmospheric systems."
+            },
+            [CelestialObjectType.NEBULA]: {
+                name: "NEBULA",
+                info: "Nebulae are vast clouds of gas and dust in space, often stellar nurseries where new stars are born from gravitational collapse."
+            },
+            [CelestialObjectType.GALAXY]: {
+                name: "GALAXY",
+                info: "Galaxies are massive collections of stars, gas, dust, and dark matter bound together by gravity, containing billions of stars."
+            },
+            [CelestialObjectType.BLACK_HOLE]: {
+                name: "BLACK HOLE",
+                info: "Black holes warp spacetime with extreme gravity. Stellar black holes form when massive stars collapse at the end of their lives."
+            },
+            [CelestialObjectType.PULSAR]: {
+                name: "PULSAR",
+                info: "Pulsars are rapidly rotating neutron stars that emit beams of radiation, appearing to pulse as they spin like cosmic lighthouses."
+            },
+            [CelestialObjectType.SUPERNOVA]: {
+                name: "SUPERNOVA",
+                info: "Supernovae are explosive stellar deaths that can briefly outshine entire galaxies, creating and dispersing heavy elements throughout space."
+            },
+            [CelestialObjectType.COMET]: {
+                name: "COMET",
+                info: "Comets are icy bodies from the outer solar system that develop glowing tails when approaching the Sun due to sublimation."
+            },
+            [CelestialObjectType.BINARY_STAR]: {
+                name: "BINARY STAR",
+                info: "Binary stars are two stars orbiting their common center of mass, often exchanging material and affecting each other's evolution."
+            },
+            [CelestialObjectType.SPACE_STATION]: {
+                name: "SPACE STATION",
+                info: "Advanced orbital habitats where beings live and work in the vacuum of space, marvels of engineering and technology."
+            }
+        };
+
+        // Shooting Star class (matching Arduino shooting stars)
+        class ShootingStar {
+            constructor() {
+                this.reset();
+                this.active = false;
+            }
+
+            reset() {
+                // Start from random edge of screen
+                const edge = Math.floor(Math.random() * 4);
+                switch(edge) {
+                    case 0: // Top
+                        this.x = Math.random() * window.innerWidth;
+                        this.y = 0;
+                        this.vx = (Math.random() - 0.5) * 4;
+                        this.vy = Math.random() * 3 + 2;
+                        break;
+                    case 1: // Right
+                        this.x = window.innerWidth;
+                        this.y = Math.random() * window.innerHeight;
+                        this.vx = -(Math.random() * 3 + 2);
+                        this.vy = (Math.random() - 0.5) * 4;
+                        break;
+                    case 2: // Bottom
+                        this.x = Math.random() * window.innerWidth;
+                        this.y = window.innerHeight;
+                        this.vx = (Math.random() - 0.5) * 4;
+                        this.vy = -(Math.random() * 3 + 2);
+                        break;
+                    case 3: // Left
+                        this.x = 0;
+                        this.y = Math.random() * window.innerHeight;
+                        this.vx = Math.random() * 3 + 2;
+                        this.vy = (Math.random() - 0.5) * 4;
+                        break;
+                }
+                
+                this.length = 20 + Math.random() * 30;
+                this.brightness = 150 + Math.random() * 105;
+                this.life = 1.0;
+                this.trail = [];
+            }
+
+            update(deltaTime) {
+                if (!this.active) return;
+
+                this.x += this.vx * deltaTime * 0.1;
+                this.y += this.vy * deltaTime * 0.1;
+                
+                // Add current position to trail
+                this.trail.push({x: this.x, y: this.y, life: this.life});
+                
+                // Limit trail length
+                if (this.trail.length > this.length) {
+                    this.trail.shift();
+                }
+                
+                // Fade trail
+                this.trail.forEach((point, index) => {
+                    point.life = (index / this.trail.length) * this.life;
+                });
+                
+                this.life -= deltaTime * 0.001;
+                
+                // Deactivate if off screen or faded
+                if (this.x < -50 || this.x > window.innerWidth + 50 || 
+                    this.y < -50 || this.y > window.innerHeight + 50 || 
+                    this.life <= 0) {
+                    this.active = false;
+                }
+            }
+
+            draw(ctx) {
+                if (!this.active || this.trail.length < 2) return;
+
+                ctx.save();
+                ctx.strokeStyle = `rgba(255, 255, 255, ${this.life})`;
+                ctx.lineWidth = 2;
+                ctx.shadowColor = 'white';
+                ctx.shadowBlur = 5;
+                
+                ctx.beginPath();
+                for (let i = 0; i < this.trail.length - 1; i++) {
+                    const current = this.trail[i];
+                    const next = this.trail[i + 1];
+                    
+                    ctx.globalAlpha = current.life * 0.8;
+                    ctx.moveTo(current.x, current.y);
+                    ctx.lineTo(next.x, next.y);
+                }
+                ctx.stroke();
+                ctx.restore();
+            }
+        }
+
+        // Celestial Object base class
+        class CelestialObject {
+            constructor(type, x, y) {
+                this.type = type;
+                this.x = x;
+                this.y = y;
+                this.scale = 1.0;
+                this.animationTime = 0;
+                this.discovered = false;
+            }
+
+            update(deltaTime) {
+                this.animationTime += deltaTime;
+            }
+
+            draw(ctx) {
+                // Base implementation - override in subclasses
+                ctx.save();
+                ctx.translate(this.x, this.y);
+                ctx.scale(this.scale, this.scale);
+                this.drawObject(ctx);
+                ctx.restore();
+            }
+
+            drawObject(ctx) {
+                // Override in subclasses
+            }
+        }
+
+        // Planet class (based on Arduino planet.h)
+        class Planet extends CelestialObject {
+            constructor(x, y) {
+                super(CelestialObjectType.PLANET, x, y);
+                this.radius = 30 + Math.random() * 20;
+                this.rotationSpeed = 0.001 + Math.random() * 0.002;
+                this.planetType = Math.floor(Math.random() * 4); // 0=Rocky, 1=Gas, 2=Earth-like, 3=Ice
+                this.hasRings = Math.random() > 0.7;
+                this.cloudOffset = 0;
+                this.generateColors();
+            }
+
+            generateColors() {
+                switch(this.planetType) {
+                    case 0: // Rocky
+                        this.baseColor = { r: 180, g: 120, b: 80 };
+                        this.featureColor = { r: 120, g: 80, b: 60 };
+                        break;
+                    case 1: // Gas Giant
+                        this.baseColor = { r: 200, g: 150, b: 100 };
+                        this.featureColor = { r: 220, g: 180, b: 120 };
+                        break;
+                    case 2: // Earth-like
+                        this.baseColor = { r: 70, g: 130, b: 180 };
+                        this.featureColor = { r: 80, g: 160, b: 80 };
+                        break;
+                    case 3: // Ice
+                        this.baseColor = { r: 200, g: 220, b: 255 };
+                        this.featureColor = { r: 180, g: 200, b: 240 };
+                        break;
+                }
+            }
+
+            update(deltaTime) {
+                super.update(deltaTime);
+                this.cloudOffset += this.rotationSpeed * deltaTime;
+            }
+
+            drawObject(ctx) {
+                const radius = this.radius;
+                
+                // Draw planet base
+                const gradient = ctx.createRadialGradient(
+                    -radius * 0.3, -radius * 0.3, 0,
+                    0, 0, radius
+                );
+                gradient.addColorStop(0, `rgb(${this.baseColor.r + 50}, ${this.baseColor.g + 50}, ${this.baseColor.b + 50})`);
+                gradient.addColorStop(1, `rgb(${this.baseColor.r}, ${this.baseColor.g}, ${this.baseColor.b})`);
+                
+                ctx.fillStyle = gradient;
+                ctx.beginPath();
+                ctx.arc(0, 0, radius, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // Draw surface features
+                ctx.fillStyle = `rgba(${this.featureColor.r}, ${this.featureColor.g}, ${this.featureColor.b}, 0.6)`;
+                for (let i = 0; i < 5; i++) {
+                    const angle = (i / 5) * Math.PI * 2 + this.cloudOffset;
+                    const x = Math.cos(angle) * radius * 0.3;
+                    const y = Math.sin(angle) * radius * 0.3;
+                    ctx.beginPath();
+                    ctx.arc(x, y, radius * 0.2, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                
+                // Draw rings if present
+                if (this.hasRings) {
+                    ctx.strokeStyle = `rgba(${this.featureColor.r}, ${this.featureColor.g}, ${this.featureColor.b}, 0.8)`;
+                    ctx.lineWidth = 3;
+                    ctx.beginPath();
+                    ctx.ellipse(0, 0, radius * 1.5, radius * 0.3, 0, 0, Math.PI * 2);
+                    ctx.stroke();
+                }
+                
+                // Draw atmosphere glow
+                ctx.shadowColor = `rgb(${this.baseColor.r}, ${this.baseColor.g}, ${this.baseColor.b})`;
+                ctx.shadowBlur = 20;
+                ctx.strokeStyle = `rgba(${this.baseColor.r}, ${this.baseColor.g}, ${this.baseColor.b}, 0.3)`;
+                ctx.lineWidth = 5;
+                ctx.beginPath();
+                ctx.arc(0, 0, radius + 5, 0, Math.PI * 2);
+                ctx.stroke();
+            }
+        }
+
+        // Nebula class (based on Arduino nebula.h)
+        class Nebula extends CelestialObject {
+            constructor(x, y) {
+                super(CelestialObjectType.NEBULA, x, y);
+                this.particles = [];
+                this.cores = [];
+                this.generateNebula();
+            }
+
+            generateNebula() {
+                // Generate nebula cores
+                for (let i = 0; i < 3; i++) {
+                    this.cores.push({
+                        x: (Math.random() - 0.5) * 100,
+                        y: (Math.random() - 0.5) * 100,
+                        radius: 20 + Math.random() * 30,
+                        hue: 200 + Math.random() * 60, // Blue to purple range
+                        intensity: 0.5 + Math.random() * 0.5
+                    });
+                }
+
+                // Generate particles
+                for (let i = 0; i < 200; i++) {
+                    this.particles.push({
+                        x: (Math.random() - 0.5) * 150,
+                        y: (Math.random() - 0.5) * 150,
+                        radius: 1 + Math.random() * 3,
+                        hue: 180 + Math.random() * 80,
+                        alpha: 0.1 + Math.random() * 0.4,
+                        drift: Math.random() * 0.001
+                    });
+                }
+            }
+
+            update(deltaTime) {
+                super.update(deltaTime);
+                
+                // Animate particles
+                this.particles.forEach(particle => {
+                    particle.x += Math.sin(this.animationTime * particle.drift) * 0.1;
+                    particle.y += Math.cos(this.animationTime * particle.drift * 0.7) * 0.1;
+                    particle.alpha = 0.1 + 0.3 * Math.sin(this.animationTime * 0.001 + particle.x * 0.01);
+                });
+            }
+
+            drawObject(ctx) {
+                // Draw nebula cores
+                this.cores.forEach(core => {
+                    const gradient = ctx.createRadialGradient(
+                        core.x, core.y, 0,
+                        core.x, core.y, core.radius
+                    );
+                    gradient.addColorStop(0, `hsla(${core.hue}, 80%, 60%, ${core.intensity})`);
+                    gradient.addColorStop(1, `hsla(${core.hue}, 80%, 30%, 0)`);
+                    
+                    ctx.fillStyle = gradient;
+                    ctx.beginPath();
+                    ctx.arc(core.x, core.y, core.radius, 0, Math.PI * 2);
+                    ctx.fill();
+                });
+
+                // Draw particles
+                this.particles.forEach(particle => {
+                    ctx.fillStyle = `hsla(${particle.hue}, 70%, 50%, ${particle.alpha})`;
+                    ctx.shadowColor = `hsl(${particle.hue}, 70%, 50%)`;
+                    ctx.shadowBlur = particle.radius * 2;
+                    ctx.beginPath();
+                    ctx.arc(particle.x, particle.y, particle.radius, 0, Math.PI * 2);
+                    ctx.fill();
+                });
+            }
+        }
+
+        // Black Hole class (based on Arduino blackhole.h)
+        class BlackHole extends CelestialObject {
+            constructor(x, y) {
+                super(CelestialObjectType.BLACK_HOLE, x, y);
+                this.eventHorizonRadius = 25;
+                this.accretionDiskRadius = 60;
+                this.particles = [];
+                this.generateAccretionDisk();
+            }
+
+            generateAccretionDisk() {
+                for (let i = 0; i < 100; i++) {
+                    const angle = Math.random() * Math.PI * 2;
+                    const distance = this.eventHorizonRadius + Math.random() * (this.accretionDiskRadius - this.eventHorizonRadius);
+                    this.particles.push({
+                        angle: angle,
+                        distance: distance,
+                        speed: 0.02 / distance, // Closer particles orbit faster
+                        brightness: Math.random(),
+                        size: 1 + Math.random() * 2
+                    });
+                }
+            }
+
+            update(deltaTime) {
+                super.update(deltaTime);
+                
+                // Animate accretion disk
+                this.particles.forEach(particle => {
+                    particle.angle += particle.speed * deltaTime;
+                    particle.brightness = 0.3 + 0.7 * Math.sin(this.animationTime * 0.005 + particle.angle);
+                });
+            }
+
+            drawObject(ctx) {
+                // Draw accretion disk
+                this.particles.forEach(particle => {
+                    const x = Math.cos(particle.angle) * particle.distance;
+                    const y = Math.sin(particle.angle) * particle.distance * 0.3; // Flatten disk
+                    
+                    const temp = 1 - (particle.distance - this.eventHorizonRadius) / (this.accretionDiskRadius - this.eventHorizonRadius);
+                    const color = temp > 0.7 ? 'white' : temp > 0.4 ? 'orange' : 'red';
+                    
+                    ctx.fillStyle = `${color}`;
+                    ctx.globalAlpha = particle.brightness * 0.8;
+                    ctx.beginPath();
+                    ctx.arc(x, y, particle.size, 0, Math.PI * 2);
+                    ctx.fill();
+                });
+                
+                // Draw event horizon (black circle with gravitational lensing effect)
+                ctx.globalAlpha = 1;
+                ctx.fillStyle = '#000';
+                ctx.beginPath();
+                ctx.arc(0, 0, this.eventHorizonRadius, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // Draw gravitational lensing ring
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.arc(0, 0, this.eventHorizonRadius + 5, 0, Math.PI * 2);
+                ctx.stroke();
+            }
+        }
+
+        class Star {
+            constructor(x, y, brightness) {
+                this.realX = x;
+                this.realY = y;
+                this.x = Math.round(x);
+                this.y = Math.round(y);
+                this.brightness = brightness; // Already in 150-255 range from Arduino
+                this.increasing = Math.random() > 0.5;
+                this.streakLength = 0;
+                this.twinkle = Math.random() * Math.PI * 2;
+                this.twinkleSpeed = 0.02 + Math.random() * 0.03;
+                this.size = 1; // Arduino uses single pixels for most stars
+                this.color = { r: 255, g: 255, b: 255 }; // Arduino stars are white (color565(brightness, brightness, brightness))
+            }
+
+            update(deltaTime, warpFactor) {
+                // Match Arduino twinkling: random(0, 20) == 0 means ~5% chance per frame
+                // At 60fps, this is about 3 times per second
+                if (Math.random() < 0.05) {
+                    const delta = Math.floor(Math.random() * 2) + 1; // random(1, 3) in Arduino
+                    if (this.increasing) {
+                        this.brightness = Math.min(this.brightness + delta, 255);
+                        if (this.brightness === 255) {
+                            this.increasing = false;
+                        }
+                    } else {
+                        this.brightness = Math.max(this.brightness - delta, 150);
+                        if (this.brightness === 150) {
+                            this.increasing = true;
+                        }
+                    }
+                }
+
+                // No additional twinkling - Arduino uses simple brightness changes
+                this.currentBrightness = this.brightness;
+            }
+
+            draw(ctx, warpFactor, centerX, centerY) {
+                if (warpFactor > 0.1) {
+                    this.drawWarpStreak(ctx, warpFactor, centerX, centerY);
+                } else {
+                    this.drawNormalStar(ctx);
+                }
+            }
+
+            drawNormalStar(ctx) {
+                // Arduino draws stars as single pixels: tft.drawPixel(x, y, color565(brightness, brightness, brightness))
+                const brightness = Math.round(this.currentBrightness);
+                
+                ctx.save();
+                ctx.fillStyle = `rgb(${brightness}, ${brightness}, ${brightness})`;
+                
+                // Draw as a single pixel (1x1 rectangle) to match TFT exactly
+                ctx.fillRect(this.x, this.y, 1, 1);
+                
+                ctx.restore();
+            }
+
+            // Removed star flares - Arduino doesn't use them for normal stars
+
+            drawWarpStreak(ctx, warpFactor, centerX, centerY) {
+                const dx = this.realX - centerX;
+                const dy = this.realY - centerY;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                
+                if (distance < 1) return;
+                
+                const dirX = dx / distance;
+                const dirY = dy / distance;
+                
+                // Match Arduino streak calculation exactly
+                const MAX_STREAK_LENGTH = 15; // From Arduino #define
+                const streakLength = Math.floor(warpFactor * Math.min(distance / 2.0, MAX_STREAK_LENGTH));
+                this.streakLength = streakLength;
+                
+                // Draw streak exactly like Arduino: individual pixels with intensity falloff
+                for (let j = 0; j <= streakLength; j++) {
+                    const streakX = Math.round(this.realX + dirX * j);
+                    const streakY = Math.round(this.realY + dirY * j);
+                    
+                    // Skip if outside canvas bounds (performance optimization)
+                    if (streakX < 0 || streakX >= window.innerWidth || 
+                        streakY < 0 || streakY >= window.innerHeight) {
+                        continue;
+                    }
+                    
+                    // Match Arduino intensity calculation exactly
+                    const intensity = (streakLength > 0) 
+                        ? Math.round(this.brightness * (streakLength - j) / streakLength)
+                        : this.brightness;
+                    
+                    // Draw as single pixel like Arduino: tft.drawPixel(streakX, streakY, color)
+                    ctx.fillStyle = `rgb(${intensity}, ${intensity}, ${intensity})`;
+                    ctx.fillRect(streakX, streakY, 1, 1);
+                }
+                
+                // Match Arduino movement calculation
+                const baseSpeed = 3.0; // From Arduino scale_f(3.0f)
+                const speed = (distance / 10.0 + 1.0) * warpFactor * baseSpeed;
+                this.realX += dirX * speed;
+                this.realY += dirY * speed;
+                
+                this.x = Math.round(this.realX);
+                this.y = Math.round(this.realY);
+                
+                // Match Arduino boundary checking exactly (SCREEN_WIDTH = 240, SCREEN_HEIGHT = 320)
+                if (this.x < 0 || this.x >= window.innerWidth || 
+                    this.y < 0 || this.y >= window.innerHeight) {
+                    this.resetStar(centerX, centerY);
+                }
+            }
+
+            resetStar(centerX, centerY) {
+                // Match Arduino star reset logic exactly
+                this.realX = Math.random() * window.innerWidth;
+                this.realY = Math.random() * window.innerHeight;
+                this.x = Math.round(this.realX);
+                this.y = Math.round(this.realY);
+                // Reset brightness like Arduino: random(150, 256)
+                this.brightness = 150 + Math.floor(Math.random() * 106);
+                this.increasing = Math.random() > 0.5;
+            }
+        }
+
+        class Starfield {
+            constructor() {
+                this.canvas = document.getElementById('gameCanvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.stars = [];
+                this.shootingStars = [];
+                this.celestialObjects = [];
+                this.currentCelestialObject = null;
+                this.warpFactor = 0;
+                this.targetWarpFactor = 0;
+                this.lastTime = 0;
+                this.starCount = 0;
+                
+                // State management (matching Arduino)
+                this.currentState = GameState.NORMAL;
+                this.showingCelestialObject = false;
+                this.discoveryStartTime = 0;
+                this.objectsShown = {};
+                this.objectsRemaining = Object.keys(CelestialObjectType).length;
+                
+                this.setupCanvas();
+                this.createStars();
+                this.createShootingStars();
+                this.setupEventListeners();
+                this.animate();
+                
+                setTimeout(() => {
+                    document.getElementById('loading').classList.add('hidden');
+                }, 1500);
+            }
+
+            setupCanvas() {
+                this.resizeCanvas();
+                window.addEventListener('resize', () => this.resizeCanvas());
+            }
+
+            resizeCanvas() {
+                this.canvas.width = window.innerWidth;
+                this.canvas.height = window.innerHeight;
+                this.centerX = this.canvas.width / 2;
+                this.centerY = this.canvas.height / 2;
+            }
+
+            createStars() {
+                // Match Arduino STAR_COUNT exactly - Arduino uses fixed count of 60 stars
+                this.starCount = 300; // STAR_COUNT from Arduino
+                
+                for (let i = 0; i < this.starCount; i++) {
+                    const x = Math.random() * this.canvas.width;
+                    const y = Math.random() * this.canvas.height;
+                    // Match Arduino exactly: random(150, 256) -> 150-255 range
+                    const brightness = 150 + Math.floor(Math.random() * 106); // 150 + (0-105) = 150-255
+                    
+                    this.stars.push(new Star(x, y, brightness));
+                }
+                
+                document.getElementById('starCount').textContent = `Stars: ${this.starCount}`;
+            }
+
+            createShootingStars() {
+                // Create shooting stars (matching Arduino MAX_SHOOTING_STARS)
+                for (let i = 0; i < 5; i++) {
+                    this.shootingStars.push(new ShootingStar());
+                }
+            }
+
+            updateShootingStars(deltaTime) {
+                // Update existing shooting stars
+                this.shootingStars.forEach(star => {
+                    star.update(deltaTime);
+                });
+
+                // Randomly activate inactive shooting stars (matching Arduino logic)
+                // Reduced frequency for better performance
+                if (Math.random() < 0.0005) { // Reduced from 0.001
+                    const inactiveStar = this.shootingStars.find(star => !star.active);
+                    if (inactiveStar) {
+                        inactiveStar.reset();
+                        inactiveStar.active = true;
+                    }
+                }
+            }
+
+            // Discovery mode logic (matching Arduino discovery system)
+            triggerDiscovery() {
+                if (this.currentState === GameState.DISCOVERY) return;
+                
+                this.currentState = GameState.DISCOVERY;
+                this.discoveryStartTime = Date.now();
+                
+                // 80% chance to show celestial object (matching Arduino 4/5 probability)
+                this.showingCelestialObject = Math.random() < 0.8;
+                
+                if (this.showingCelestialObject) {
+                    this.selectRandomCelestialObject();
+                }
+                
+                this.updateModeIndicator();
+            }
+
+            selectRandomCelestialObject() {
+                // Reset tracking if all objects have been shown (matching Arduino logic)
+                if (this.objectsRemaining === 0) {
+                    this.objectsShown = {};
+                    this.objectsRemaining = Object.keys(CelestialObjectType).length;
+                }
+
+                // Find an object that hasn't been shown yet
+                const availableTypes = Object.values(CelestialObjectType).filter(type => !this.objectsShown[type]);
+                
+                if (availableTypes.length === 0) {
+                    // Fallback - should not happen due to reset above
+                    const allTypes = Object.values(CelestialObjectType);
+                    const randomType = allTypes[Math.floor(Math.random() * allTypes.length)];
+                    this.createCelestialObject(randomType);
+                } else {
+                    const randomType = availableTypes[Math.floor(Math.random() * availableTypes.length)];
+                    this.objectsShown[randomType] = true;
+                    this.objectsRemaining--;
+                    this.createCelestialObject(randomType);
+                }
+            }
+
+            createCelestialObject(type) {
+                // Clear previous celestial object
+                this.currentCelestialObject = null;
+                
+                // Create new object at center of screen
+                const x = this.canvas.width / 2;
+                const y = this.canvas.height / 2;
+                
+                switch(type) {
+                    case CelestialObjectType.PLANET:
+                        this.currentCelestialObject = new Planet(x, y);
+                        break;
+                    case CelestialObjectType.NEBULA:
+                        this.currentCelestialObject = new Nebula(x, y);
+                        break;
+                    case CelestialObjectType.BLACK_HOLE:
+                        this.currentCelestialObject = new BlackHole(x, y);
+                        break;
+                    default:
+                        // For now, default to planet for unimplemented types
+                        this.currentCelestialObject = new Planet(x, y);
+                        this.currentCelestialObject.type = type;
+                        break;
+                }
+                
+                // Show discovery UI
+                this.showDiscoveryUI(type);
+            }
+
+            showDiscoveryUI(objectType) {
+                const objectData = CelestialObjectData[objectType];
+                if (!objectData) return;
+                
+                document.getElementById('objectName').textContent = objectData.name;
+                document.getElementById('objectInfo').textContent = objectData.info;
+                document.getElementById('discoveryUI').classList.add('visible');
+                
+                // Play discovery sound (web audio implementation would go here)
+                this.playDiscoverySound(objectType);
+            }
+
+            playDiscoverySound(objectType) {
+                // Web Audio API implementation would go here
+                // For now, we'll use a simple beep or leave it silent
+                console.log(`Discovery sound for ${objectType}`);
+            }
+
+            updateModeIndicator() {
+                const indicator = document.getElementById('modeIndicator');
+                switch(this.currentState) {
+                    case GameState.NORMAL:
+                        indicator.textContent = 'Normal Mode';
+                        indicator.style.color = '#00ffff';
+                        break;
+                    case GameState.WARP:
+                        indicator.textContent = 'Warp Drive';
+                        indicator.style.color = '#ff0080';
+                        break;
+                    case GameState.DISCOVERY:
+                        indicator.textContent = 'Discovery Mode';
+                        indicator.style.color = '#80ff00';
+                        break;
+                }
+            }
+
+            setupEventListeners() {
+                // Mouse wheel for warp control
+                this.canvas.addEventListener('wheel', (e) => {
+                    e.preventDefault();
+                    if (this.currentState === GameState.DISCOVERY) return; // No warp in discovery mode
+                    
+                    const delta = e.deltaY > 0 ? -0.1 : 0.1;
+                    this.targetWarpFactor = Math.max(0, Math.min(1, this.targetWarpFactor + delta));
+                    
+                    // Update state based on warp factor
+                    this.updateGameState();
+                });
+
+                // Mouse movement for navigation
+                this.canvas.addEventListener('mousemove', (e) => {
+                    this.updateCustomCursor(e.clientX, e.clientY);
+                });
+
+                // Click to reset warp or exit discovery
+                this.canvas.addEventListener('click', () => {
+                    if (this.currentState === GameState.DISCOVERY) {
+                        this.exitDiscovery();
+                    } else {
+                        this.targetWarpFactor = 0;
+                        this.updateGameState();
+                    }
+                });
+
+                // Keyboard controls
+                document.addEventListener('keydown', (e) => {
+                    switch(e.code) {
+                        case 'Space':
+                            e.preventDefault();
+                            if (this.currentState === GameState.NORMAL) {
+                                this.triggerDiscovery();
+                            } else if (this.currentState === GameState.DISCOVERY) {
+                                this.exitDiscovery();
+                            }
+                            break;
+                        case 'Escape':
+                            if (this.currentState === GameState.DISCOVERY) {
+                                this.exitDiscovery();
+                            } else {
+                                this.targetWarpFactor = 0;
+                                this.updateGameState();
+                            }
+                            break;
+                    }
+                });
+
+                // Touch support for mobile
+                this.canvas.addEventListener('touchstart', (e) => {
+                    e.preventDefault();
+                    if (this.currentState === GameState.DISCOVERY) {
+                        this.exitDiscovery();
+                    } else {
+                        this.targetWarpFactor = Math.min(1, this.targetWarpFactor + 0.2);
+                        this.updateGameState();
+                    }
+                });
+
+                this.canvas.addEventListener('touchend', () => {
+                    if (this.currentState !== GameState.DISCOVERY) {
+                        this.targetWarpFactor = Math.max(0, this.targetWarpFactor - 0.1);
+                        this.updateGameState();
+                    }
+                });
+            }
+
+            updateGameState() {
+                const prevState = this.currentState;
+                
+                // State transitions based on warp factor (matching Arduino logic)
+                if (this.targetWarpFactor > 0.1 && this.currentState !== GameState.DISCOVERY) {
+                    this.currentState = GameState.WARP;
+                } else if (this.targetWarpFactor <= 0.1 && this.currentState === GameState.WARP) {
+                    // Exiting warp - chance for discovery
+                    if (Math.random() < 0.8) { // 80% chance like Arduino
+                        this.triggerDiscovery();
+                    } else {
+                        this.currentState = GameState.NORMAL;
+                    }
+                } else if (this.currentState !== GameState.DISCOVERY) {
+                    this.currentState = GameState.NORMAL;
+                }
+                
+                if (prevState !== this.currentState) {
+                    this.updateModeIndicator();
+                }
+            }
+
+            exitDiscovery() {
+                this.currentState = GameState.NORMAL;
+                this.showingCelestialObject = false;
+                this.currentCelestialObject = null;
+                document.getElementById('discoveryUI').classList.remove('visible');
+                this.updateModeIndicator();
+            }
+
+            updateCustomCursor(x, y) {
+                const cursor = document.getElementById('customCursor');
+                cursor.style.left = x + 'px';
+                cursor.style.top = y + 'px';
+                
+                const scale = 1 + this.warpFactor * 2;
+                cursor.style.transform = `scale(${scale})`;
+            }
+
+            update(deltaTime) {
+                // Smooth warp factor transition
+                const warpDiff = this.targetWarpFactor - this.warpFactor;
+                this.warpFactor += warpDiff * 0.1;
+                
+                // Convert warpFactor to Arduino scale (Arduino uses potentiometer 0-4095 mapped to warp intensity)
+                // Arduino warpFactor = map(potValue, MIN_WARP_THRESHOLD, 4095, 0.1, 1.0)
+                this.arduinoWarpFactor = this.warpFactor; // Keep 0-1 range but use it properly
+
+                // Update based on current state (matching Arduino state machine)
+                switch(this.currentState) {
+                    case GameState.NORMAL:
+                        this.updateNormalMode(deltaTime);
+                        break;
+                    case GameState.WARP:
+                        this.updateWarpMode(deltaTime);
+                        break;
+                    case GameState.DISCOVERY:
+                        this.updateDiscoveryMode(deltaTime);
+                        break;
+                }
+
+                // Update UI
+                const speedFill = document.getElementById('speedFill');
+                speedFill.style.width = (this.warpFactor * 100) + '%';
+            }
+
+            updateNormalMode(deltaTime) {
+                // Update stars with twinkling
+                this.stars.forEach(star => {
+                    star.update(deltaTime, 0); // No warp effect in normal mode
+                });
+
+                // Update shooting stars
+                this.updateShootingStars(deltaTime);
+            }
+
+            updateWarpMode(deltaTime) {
+                // Update stars with warp effect - no brightness changes during warp in Arduino
+                this.stars.forEach(star => {
+                    // Don't update brightness during warp - Arduino doesn't do this
+                    // star.update(deltaTime, this.warpFactor); // Skip brightness updates
+                });
+
+                // No shooting stars during warp
+            }
+
+            updateDiscoveryMode(deltaTime) {
+                // Update stars with twinkling (like normal mode)
+                this.stars.forEach(star => {
+                    star.update(deltaTime, 0);
+                });
+
+                // Update shooting stars for visual appeal
+                this.updateShootingStars(deltaTime);
+
+                // Update celestial object if present
+                if (this.currentCelestialObject) {
+                    this.currentCelestialObject.update(deltaTime);
+                }
+            }
+
+            draw() {
+                // Clear canvas to match Arduino BG_COLOR (TFT_BLACK)
+                this.ctx.fillStyle = '#000000';
+                this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+                
+                // Disable anti-aliasing for pixel-perfect rendering like TFT
+                this.ctx.imageSmoothingEnabled = false;
+
+                // Draw based on current state
+                switch(this.currentState) {
+                    case GameState.NORMAL:
+                        this.drawNormalMode();
+                        break;
+                    case GameState.WARP:
+                        this.drawWarpMode();
+                        break;
+                    case GameState.DISCOVERY:
+                        this.drawDiscoveryMode();
+                        break;
+                }
+            }
+
+            drawNormalMode() {
+                // Draw stars normally
+                this.stars.forEach(star => {
+                    star.draw(this.ctx, 0, this.centerX, this.centerY);
+                });
+
+                // Draw shooting stars
+                this.shootingStars.forEach(star => {
+                    star.draw(this.ctx);
+                });
+            }
+
+            drawWarpMode() {
+                // Arduino clears previous streaks first, then draws new ones
+                // Our approach: clear entire canvas (already done in draw()), then draw all stars with streaks
+                this.stars.forEach((star, index) => {
+                    star.draw(this.ctx, this.arduinoWarpFactor || this.warpFactor, this.centerX, this.centerY);
+                });
+
+                // Very minimal warp effect - Arduino is mostly just star streaks
+                if (this.warpFactor > 0.5) {
+                    this.drawMinimalWarpEffect();
+                }
+            }
+
+            drawDiscoveryMode() {
+                // Draw stars normally (twinkling background)
+                this.stars.forEach(star => {
+                    star.draw(this.ctx, 0, this.centerX, this.centerY);
+                });
+
+                // Draw shooting stars
+                this.shootingStars.forEach(star => {
+                    star.draw(this.ctx);
+                });
+
+                // Draw celestial object if present
+                if (this.currentCelestialObject && this.showingCelestialObject) {
+                    this.currentCelestialObject.draw(this.ctx);
+                }
+            }
+
+            drawMinimalWarpEffect() {
+                // Extremely subtle effect - Arduino TFT doesn't have overlays, just star streaks
+                const alpha = Math.min(this.warpFactor * 0.02, 0.01); // Barely visible
+                this.ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
+                this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+            }
+
+            // Removed speed lines - Arduino doesn't have them, just star streaks
+
+            animate(currentTime = 0) {
+                const deltaTime = currentTime - this.lastTime;
+                this.lastTime = currentTime;
+
+                // Target 60fps consistently like Arduino (Arduino runs at ~60fps with proper timing)
+                const targetFrameTime = 16.67; // 60fps
+                if (deltaTime < targetFrameTime) {
+                    requestAnimationFrame((time) => this.animate(time));
+                    return;
+                }
+
+                this.update(deltaTime);
+                this.draw();
+
+                requestAnimationFrame((time) => this.animate(time));
+            }
+        }
+
+        // Global starfield instance for UI callbacks
+        let starfieldInstance = null;
+
+        // Global function for discovery UI
+        function closeDiscovery() {
+            if (starfieldInstance) {
+                starfieldInstance.exitDiscovery();
+            }
+        }
+
+        window.addEventListener('load', () => {
+            starfieldInstance = new Starfield();
+        });
+
+        document.addEventListener('DOMContentLoaded', () => {
+            document.body.style.cursor = 'none';
+        });
+    </script>
+</body>
+</html>

@@ -72,6 +72,35 @@
 #include "sprite_manager.h"      // Ensure SpriteManager is included for safeDeleteSprite
 #include <algorithm>             // Add at the top with other includes
 #include <FastLED.h>             // Added for LED animations
+// Branding assets
+#include "Tejaslogo.h"
+
+// Helper to draw 1-bit logo when bit order is opposite (fixes dotted/choppy look)
+static inline uint8_t reverseByte(uint8_t b)
+{
+  b = (b & 0xF0) >> 4 | (b & 0x0F) << 4;
+  b = (b & 0xCC) >> 2 | (b & 0x33) << 2;
+  b = (b & 0xAA) >> 1 | (b & 0x55) << 1;
+  return b;
+}
+
+static void drawXBitmapBitSwap(int16_t x, int16_t y, const unsigned char *bitmap, int16_t w, int16_t h, uint16_t color)
+{
+  size_t bytes = ((w + 7) / 8) * (size_t)h;
+  uint8_t *buf = (uint8_t *)malloc(bytes);
+  if (!buf)
+  {
+    // Fallback without swap
+    tft.drawXBitmap(x, y, bitmap, w, h, color);
+    return;
+  }
+  for (size_t i = 0; i < bytes; i++)
+  {
+    buf[i] = reverseByte(bitmap[i]);
+  }
+  tft.drawXBitmap(x, y, buf, w, h, color);
+  free(buf);
+}
 // #include <psram.h> // Include for PSRAM allocation
 
 // Define globals for quiz mode
@@ -2426,13 +2455,85 @@ void powerOff()
 {
   Serial.println("Entering deep sleep");
 
-  // Show power off message
-  tft.fillScreen(COLOR_BG);
-  tft.setTextColor(COLOR_ERROR);
+  // Show power off message with retro menu-style background
+  tft.fillScreen(BG_COLOR);
+
+  // Retro grid background (match main menu)
+  const int gridSize = 16;
+  const uint16_t gridColor1 = tft.color565(0, 10, 20);
+  const uint16_t gridColor2 = tft.color565(0, 25, 50);
+  for (int y = 0; y < SCREEN_HEIGHT; y += gridSize)
+  {
+    for (int x = 0; x < SCREEN_WIDTH; x += gridSize)
+    {
+      uint16_t gridColor = ((x / gridSize) + (y / gridSize)) % 2 == 0 ? gridColor1 : gridColor2;
+      tft.drawRect(x, y, gridSize, gridSize, gridColor);
+    }
+  }
+
+  // Scanline effect
+  for (int y = 0; y < SCREEN_HEIGHT; y += 2)
+  {
+    tft.drawFastHLine(0, y, SCREEN_WIDTH, tft.color565(0, 0, 15));
+  }
+
+  // Draw existing twinkling stars over the background
+  for (int i = 0; i < STAR_COUNT; i++)
+  {
+    drawStar(stars[i]);
+  }
+
+  // Draw centered logo (1-bit bitmap)
+  int logoX = (SCREEN_WIDTH - TEJAS_LOGO_WIDTH) / 2;
+  int logoY = 40; // top margin
+  // Use bit-swapped drawing to avoid choppy/dotted strokes if bit order differs
+  drawXBitmapBitSwap(logoX, logoY, epd_bitmap_Sept_4_Screenshot_from_Remove, TEJAS_LOGO_WIDTH, TEJAS_LOGO_HEIGHT, TFT_WHITE);
+
+  // Tagline and URL with retro styling and emphasis
+  tft.setTextDatum(MC_DATUM);
+
+  int centerX = SCREEN_WIDTH / 2;
+  int baseY = logoY + TEJAS_LOGO_HEIGHT + 12;
+
+  // Line 1: "Designed on earth" with glow/shadow
+  tft.setTextSize(2);
+  for (int i = 3; i > 0; i--)
+  {
+    uint8_t intensity = 40 + i * 25; // subtle cyan glow
+    tft.setTextColor(tft.color565(0, intensity * 0.6, intensity), BG_COLOR);
+    tft.drawString("Designed on earth", centerX + i, baseY + i);
+  }
+  tft.setTextColor(tft.color565(150, 220, 255), BG_COLOR);
+  tft.drawString("Designed on earth", centerX, baseY);
+
+  // Line 2: "Tejas Patel" larger with outline
+  int nameY = baseY + 26; // add extra spacing below line 1
+  tft.setTextSize(3);
+  // Outline layers
+  tft.setTextColor(TFT_BLACK, BG_COLOR);
+  tft.drawString("Tejas Patel", centerX + 2, nameY + 2);
+  tft.drawString("Tejas Patel", centerX - 2, nameY - 2);
+  tft.drawString("Tejas Patel", centerX + 2, nameY - 2);
+  tft.drawString("Tejas Patel", centerX - 2, nameY + 2);
+  // Main name
+  tft.setTextColor(TFT_WHITE, BG_COLOR);
+  tft.drawString("Tejas Patel", centerX, nameY);
+
+  // URL in softer color
+  int urlY = nameY + 22; // keep URL comfortably below name
   tft.setTextSize(1);
-  tft.setCursor((SCREEN_WIDTH - tft.textWidth("POWERING OFF...")) / 2, SCREEN_HEIGHT / 2);
-  tft.print("POWERING OFF...");
-  delay(1000);
+  tft.setTextColor(tft.color565(180, 220, 255), BG_COLOR);
+  tft.drawString("www.tejaspatel.design", centerX, urlY);
+
+  // Status line
+  tft.setTextColor(COLOR_ERROR, BG_COLOR);
+  String shutting = "POWERING OFF...";
+  int shutX = (SCREEN_WIDTH - tft.textWidth(shutting)) / 2;
+  int shutY = SCREEN_HEIGHT - 20;
+  tft.setCursor(shutX, shutY);
+  tft.print(shutting);
+
+  delay(3500);
 
   // Turn off display
   digitalWrite(TFT_LED, LOW);
