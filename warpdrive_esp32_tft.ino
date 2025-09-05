@@ -216,6 +216,12 @@ Star stars[STAR_COUNT];
 uint16_t prevX[STAR_COUNT][MAX_STREAK_LENGTH + 1]; // Changed to uint16_t
 uint16_t prevY[STAR_COUNT][MAX_STREAK_LENGTH + 1]; // Changed to uint16_t
 
+// Double buffering for smooth warp animation
+uint16_t *warpBuffer = nullptr;
+bool bufferInitialized = false;
+unsigned long lastWarpFrame = 0;
+constexpr unsigned long WARP_FRAME_DELAY = 16; // ~60 FPS
+
 // --- Color Scheme (Reverted to working version) ---
 constexpr uint16_t COLOR_BG = TFT_BLACK;   // Background
 constexpr uint16_t COLOR_STAR = TFT_WHITE; // Stars
@@ -618,7 +624,7 @@ void hapticFeedback(float warpFactor)
 }
 
 // Frame timing
-constexpr unsigned long TARGET_FRAME_MS = 33; // ~30 FPS
+constexpr unsigned long TARGET_FRAME_MS = 15; // ~60 FPS
 
 // State management
 enum class State
@@ -779,6 +785,43 @@ SpriteHandle quizHandle = {0};
 // Create an instance of the StoryMode class
 StoryMode storyModeManager; // Default constructor will be called
 
+// Initialize warp buffer for smooth animation
+void initWarpBuffer()
+{
+  if (!bufferInitialized)
+  {
+    size_t bufferSize = SCREEN_WIDTH * SCREEN_HEIGHT * sizeof(uint16_t);
+    warpBuffer = (uint16_t *)ps_malloc(bufferSize);
+    if (warpBuffer != nullptr)
+    {
+      // Initialize buffer to black
+      memset(warpBuffer, 0, bufferSize);
+      bufferInitialized = true;
+      // Ensure RGB565 buffer byte order matches panel expectation for pushImage
+      tft.setSwapBytes(true);
+      Serial.printf("Warp buffer initialized successfully. Size: %d bytes\n", bufferSize);
+    }
+    else
+    {
+      Serial.println("Failed to allocate warp buffer - using direct drawing");
+    }
+  }
+}
+
+// Clean up warp buffer
+void cleanupWarpBuffer()
+{
+  if (warpBuffer != nullptr)
+  {
+    free(warpBuffer);
+    warpBuffer = nullptr;
+    bufferInitialized = false;
+    // Restore default to avoid unintended swaps elsewhere
+    tft.setSwapBytes(false);
+    Serial.println("Warp buffer cleaned up");
+  }
+}
+
 void setup()
 {
   pinMode(VIBRATION_PIN, OUTPUT);
@@ -829,9 +872,9 @@ void setup()
     // Show wake-up message
     tft.setTextColor(COLOR_GREEN);
     tft.setTextSize(1);
-    tft.setCursor((SCREEN_WIDTH - tft.textWidth("POWERING ON...")) / 2, SCREEN_HEIGHT / 2);
-    tft.print("POWERING ON...");
-    delay(1000);
+    tft.setCursor((SCREEN_WIDTH - tft.textWidth("Warp Drive Loading...")) / 2, SCREEN_HEIGHT / 2);
+    tft.print("Warp Drive Loading...");
+    delay(100);
 
     // Continue with normal initialization
     initializeSystem();
@@ -896,6 +939,9 @@ void initializeSystem()
 
   // Initialize shooting stars
   initShootingStars();
+
+  // Initialize warp buffer for smooth animation
+  initWarpBuffer();
 
   // Draw menu screen
   drawMenu();
@@ -1282,11 +1328,11 @@ void loop()
     }
     else if (currentState == State::DISCOVERY && showingCelestialObject)
     {
-      targetFrameTime = TARGET_FRAME_MS + 5; // Slightly lower framerate for complex objects
+      targetFrameTime = TARGET_FRAME_MS; // Slightly lower framerate for complex objects
     }
     else
     {
-      targetFrameTime = TARGET_FRAME_MS + 10; // Lower framerate for standard starfield
+      targetFrameTime = TARGET_FRAME_MS; // Lower framerate for standard starfield
     }
 
     if (frameTime < targetFrameTime)
@@ -1456,6 +1502,9 @@ void processInput()
     tft.fillScreen(BG_COLOR); // Clear screen for warp effect
     delay(10);                // Small delay to ensure screen is fully cleared
 
+    // Initialize warp buffer for smooth animation
+    initWarpBuffer();
+
     // Initialize stars for proper warp effect
     // const float centerX = SCREEN_WIDTH / 2.0f; // No longer needed here
     // const float centerY = SCREEN_HEIGHT / 2.0f; // No longer needed here
@@ -1496,6 +1545,9 @@ void processInput()
 
     // --- Clear the entire screen to remove warp streaks cleanly ---
     tft.fillScreen(BG_COLOR);
+
+    // Clean up warp buffer
+    cleanupWarpBuffer();
 
     // Allow time for screen clearing operation
     delay(20); // Increased delay for better screen clearing
@@ -1756,147 +1808,246 @@ void updateStars()
 // Implementation moved to star.h
 
 /**
- * Updates and renders stars in warp mode
+ * Updates and renders stars in warp mode with double buffering for smooth animation
  * Creates the iconic Star Trek warp effect with stars stretching based on distance from center
  */
 void updateWarpStars()
 {
+  // Frame rate limiting to prevent excessive updates
+  unsigned long currentTime = millis();
+  if (currentTime - lastWarpFrame < WARP_FRAME_DELAY)
+  {
+    return; // Skip this frame to maintain smooth 60 FPS
+  }
+  lastWarpFrame = currentTime;
+
   const float centerX = SCREEN_WIDTH / 2.0f;
   const float centerY = SCREEN_HEIGHT / 2.0f;
 
-  // 1. Clear previous streaks (from the frame before this one)
-  // Optimized for 240x320 screen - only clear pixels that were actually drawn
-  for (int i = 0; i < STAR_COUNT; i++)
+  // Use double buffering if available, otherwise fall back to direct drawing
+  if (bufferInitialized && warpBuffer != nullptr)
   {
-    for (int j = 0; j <= MAX_STREAK_LENGTH; j++)
+    // Debug: Print which path we're taking
+    // Serial.println("Using double buffering");
+    // Clear the buffer to background color (pure black)
+    // Use explicit black color value instead of TFT_BLACK
+    uint16_t blackColor = 0x0000; // Pure black in RGB565
+    for (int i = 0; i < SCREEN_WIDTH * SCREEN_HEIGHT; i++)
     {
-      uint16_t px = prevX[i][j];
-      uint16_t py = prevY[i][j];
-      // Only clear pixels that were valid in previous frame
-      if (px < SCREEN_WIDTH && py < SCREEN_HEIGHT)
+      warpBuffer[i] = blackColor;
+    }
+
+    // Debug test pattern removed
+
+    // Calculate scaled streak parameters
+    float baseStreakLength = scale_f(MAX_STREAK_LENGTH);
+    float baseSpeed = scale_f(3.0f);
+    float minSpeed = scale_f(MIN_WARP_SPEED * 5.0f);
+
+    // Draw all stars and streaks to buffer
+    for (int i = 0; i < STAR_COUNT; i++)
+    {
+      float dx = stars[i].realX - centerX;
+      float dy = stars[i].realY - centerY;
+      float distance = sqrtf(dx * dx + dy * dy);
+      if (distance < 1.0f)
+        distance = 1.0f;
+
+      float dirX = dx / distance;
+      float dirY = dy / distance;
+
+      // Scale streak length with screen size
+      int streakLength = static_cast<int>(warpFactor *
+                                          std::min(distance / 2.0f, baseStreakLength));
+      stars[i].streakLength = streakLength;
+
+      // Draw streak to buffer
+      for (int j = 0; j <= streakLength; j++)
       {
-        // Only clear if this pixel was actually drawn (not just marked)
-        if (px != SCREEN_WIDTH && py != SCREEN_HEIGHT)
+        int streakX = roundf(stars[i].realX + dirX * j);
+        int streakY = roundf(stars[i].realY + dirY * j);
+
+        // Only draw pixels that are on screen
+        if (streakX >= 0 && streakX < SCREEN_WIDTH &&
+            streakY >= 0 && streakY < SCREEN_HEIGHT)
         {
-          tft.drawPixel(px, py, BG_COLOR);
+          // Fade: head bright -> tail dim. Use gamma-ish curve for smoother falloff
+          float t = (streakLength > 0) ? (float)j / (float)streakLength : 0.0f; // 0 at head
+          float fade = powf(1.0f - t, 1.6f);                                    // adjust exponent for taste
+          uint8_t intensity = (uint8_t)constrain(stars[i].brightness * fade, 20.0f, 255.0f);
+          uint16_t color = tft.color565(intensity, intensity, intensity);
+          warpBuffer[streakY * SCREEN_WIDTH + streakX] = color;
         }
-        // Mark as invalid for next frame
-        prevX[i][j] = SCREEN_WIDTH;
-        prevY[i][j] = SCREEN_HEIGHT;
+      }
+
+      // Update star position with scaled speed
+      float speed = (distance / 10.0f + 1.0f) * warpFactor * baseSpeed;
+      speed = std::max(speed, minSpeed * warpFactor);
+
+      stars[i].realX += dirX * speed;
+      stars[i].realY += dirY * speed;
+
+      // Convert to integer positions
+      int newX = roundf(stars[i].realX);
+      int newY = roundf(stars[i].realY);
+
+      // Reset stars that move off screen
+      if (newX < 0 || newX >= SCREEN_WIDTH ||
+          newY < 0 || newY >= SCREEN_HEIGHT)
+      {
+        // Reset the star's position
+        float angle = random(0, 360) * PI / 180.0f;
+        float maxRadius = sqrt((SCREEN_WIDTH / 2.0f) * (SCREEN_WIDTH / 2.0f) + (SCREEN_HEIGHT / 2.0f) * (SCREEN_HEIGHT / 2.0f));
+        float distance = random(10, maxRadius);
+        stars[i].realX = centerX + cos(angle) * distance;
+        stars[i].realY = centerY + sin(angle) * distance;
+        stars[i].x = roundf(stars[i].realX);
+        stars[i].y = roundf(stars[i].realY);
+        stars[i].brightness = random(150, 256);
+      }
+      else
+      {
+        // Star is still on screen
+        stars[i].x = newX;
+        stars[i].y = newY;
       }
     }
+
+    // Push the entire buffer to the display at once
+    tft.pushImage(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, warpBuffer);
+
+    // Debug: Print some buffer values to see what's in there
+    // Serial.printf("Buffer[0]: 0x%04X, Buffer[1]: 0x%04X\n", warpBuffer[0], warpBuffer[1]);
   }
-
-  // Calculate scaled streak parameters
-  float baseStreakLength = scale_f(MAX_STREAK_LENGTH);
-  float baseSpeed = scale_f(3.0f);
-  float minSpeed = scale_f(MIN_WARP_SPEED * 5.0f);
-
-  for (int i = 0; i < STAR_COUNT; i++)
+  else
   {
-    float dx = stars[i].realX - centerX;
-    float dy = stars[i].realY - centerY;
-    float distance = sqrtf(dx * dx + dy * dy);
-    if (distance < 1.0f)
-      distance = 1.0f;
-
-    float dirX = dx / distance;
-    float dirY = dy / distance;
-
-    // Scale streak length with screen size
-    int streakLength = static_cast<int>(warpFactor *
-                                        std::min(distance / 2.0f, baseStreakLength));
-    stars[i].streakLength = streakLength;
-
-    // Draw streak with optimized bounds checking for 240x320
-    for (int j = 0; j <= streakLength; j++)
+    // Debug: Print which path we're taking
+    // Serial.println("Using direct drawing fallback");
+    // Fallback to optimized direct drawing (original method but improved)
+    // Clear previous streaks more efficiently
+    for (int i = 0; i < STAR_COUNT; i++)
     {
-      int streakX = roundf(stars[i].realX + dirX * j);
-      int streakY = roundf(stars[i].realY + dirY * j);
-
-      // Only store positions that are actually on screen
-      if (streakX >= 0 && streakX < SCREEN_WIDTH &&
-          streakY >= 0 && streakY < SCREEN_HEIGHT)
-      {
-        if (j <= MAX_STREAK_LENGTH)
-        {
-          prevX[i][j] = streakX;
-          prevY[i][j] = streakY;
-        }
-
-        uint8_t intensity = (streakLength > 0) ? (stars[i].brightness * (streakLength - j) / streakLength) : stars[i].brightness;
-        uint16_t color = tft.color565(intensity, intensity, intensity);
-        tft.drawPixel(streakX, streakY, color);
-      }
-      else if (j <= MAX_STREAK_LENGTH)
-      {
-        // Mark off-screen positions as invalid
-        prevX[i][j] = SCREEN_WIDTH;
-        prevY[i][j] = SCREEN_HEIGHT;
-      }
-    }
-    // Clear any remaining part of the previous streak storage beyond the current streak length
-    // This ensures old longer streaks are fully cleared when the current streak is shorter.
-    for (int j = streakLength + 1; j <= MAX_STREAK_LENGTH; ++j)
-    {
-      prevX[i][j] = SCREEN_WIDTH; // Mark as invalid/off-screen
-      prevY[i][j] = SCREEN_HEIGHT;
-    }
-
-    // Update star position with scaled speed
-    float speed = (distance / 10.0f + 1.0f) * warpFactor * baseSpeed;
-    speed = std::max(speed, minSpeed * warpFactor);
-
-    stars[i].realX += dirX * speed;
-    stars[i].realY += dirY * speed;
-
-    // Convert to integer positions
-    int newX = roundf(stars[i].realX);
-    int newY = roundf(stars[i].realY);
-
-    // 3. Reset stars that move off screen
-    if (newX < 0 || newX >= SCREEN_WIDTH ||
-        newY < 0 || newY >= SCREEN_HEIGHT)
-    {
-
-      // Erase the streak that was just drawn *before* resetting the star
-      // This ensures no pixels are left behind when a star goes off-screen
       for (int j = 0; j <= MAX_STREAK_LENGTH; j++)
-      { // Iterate through stored points
+      {
         uint16_t px = prevX[i][j];
         uint16_t py = prevY[i][j];
-        // Strict bounds checking to prevent drawing outside screen
         if (px < SCREEN_WIDTH && py < SCREEN_HEIGHT)
         {
           tft.drawPixel(px, py, BG_COLOR);
+          prevX[i][j] = SCREEN_WIDTH;
+          prevY[i][j] = SCREEN_HEIGHT;
+        }
+      }
+    }
+
+    // Calculate scaled streak parameters
+    float baseStreakLength = scale_f(MAX_STREAK_LENGTH);
+    float baseSpeed = scale_f(3.0f);
+    float minSpeed = scale_f(MIN_WARP_SPEED * 5.0f);
+
+    for (int i = 0; i < STAR_COUNT; i++)
+    {
+      float dx = stars[i].realX - centerX;
+      float dy = stars[i].realY - centerY;
+      float distance = sqrtf(dx * dx + dy * dy);
+      if (distance < 1.0f)
+        distance = 1.0f;
+
+      float dirX = dx / distance;
+      float dirY = dy / distance;
+
+      // Scale streak length with screen size
+      int streakLength = static_cast<int>(warpFactor *
+                                          std::min(distance / 2.0f, baseStreakLength));
+      stars[i].streakLength = streakLength;
+
+      // Draw streak with optimized bounds checking
+      for (int j = 0; j <= streakLength; j++)
+      {
+        int streakX = roundf(stars[i].realX + dirX * j);
+        int streakY = roundf(stars[i].realY + dirY * j);
+
+        if (streakX >= 0 && streakX < SCREEN_WIDTH &&
+            streakY >= 0 && streakY < SCREEN_HEIGHT)
+        {
+          if (j <= MAX_STREAK_LENGTH)
+          {
+            prevX[i][j] = streakX;
+            prevY[i][j] = streakY;
+          }
+
+          // Fade: head bright -> tail dim (same curve as buffered path)
+          float t = (streakLength > 0) ? (float)j / (float)streakLength : 0.0f;
+          float fade = powf(1.0f - t, 1.6f);
+          uint8_t intensity = (uint8_t)constrain(stars[i].brightness * fade, 20.0f, 255.0f);
+          uint16_t color = tft.color565(intensity, intensity, intensity);
+          tft.drawPixel(streakX, streakY, color);
+        }
+        else if (j <= MAX_STREAK_LENGTH)
+        {
+          prevX[i][j] = SCREEN_WIDTH;
+          prevY[i][j] = SCREEN_HEIGHT;
         }
       }
 
-      // Now reset the star's position
-      float angle = random(0, 360) * PI / 180.0f;
-      float maxRadius = sqrt((SCREEN_WIDTH / 2.0f) * (SCREEN_WIDTH / 2.0f) + (SCREEN_HEIGHT / 2.0f) * (SCREEN_HEIGHT / 2.0f));
-      float distance = random(10, maxRadius); // Respawn within screen bounds
-      stars[i].realX = centerX + cos(angle) * distance;
-      stars[i].realY = centerY + sin(angle) * distance;
-      stars[i].x = roundf(stars[i].realX);
-      stars[i].y = roundf(stars[i].realY);
-      stars[i].brightness = random(150, 256);
-
-      // Clear the previous position buffer for the reset star
-      // This is critical to prevent stray pixels from appearing
-      for (int j = 0; j <= MAX_STREAK_LENGTH; j++)
+      // Clear any remaining streak storage
+      for (int j = streakLength + 1; j <= MAX_STREAK_LENGTH; ++j)
       {
-        prevX[i][j] = SCREEN_WIDTH;  // Mark as invalid/off-screen
-        prevY[i][j] = SCREEN_HEIGHT; // Mark as invalid/off-screen
+        prevX[i][j] = SCREEN_WIDTH;
+        prevY[i][j] = SCREEN_HEIGHT;
+      }
+
+      // Update star position with scaled speed
+      float speed = (distance / 10.0f + 1.0f) * warpFactor * baseSpeed;
+      speed = std::max(speed, minSpeed * warpFactor);
+
+      stars[i].realX += dirX * speed;
+      stars[i].realY += dirY * speed;
+
+      // Convert to integer positions
+      int newX = roundf(stars[i].realX);
+      int newY = roundf(stars[i].realY);
+
+      // Reset stars that move off screen
+      if (newX < 0 || newX >= SCREEN_WIDTH ||
+          newY < 0 || newY >= SCREEN_HEIGHT)
+      {
+        // Erase the streak before resetting
+        for (int j = 0; j <= MAX_STREAK_LENGTH; j++)
+        {
+          uint16_t px = prevX[i][j];
+          uint16_t py = prevY[i][j];
+          if (px < SCREEN_WIDTH && py < SCREEN_HEIGHT)
+          {
+            tft.drawPixel(px, py, BG_COLOR);
+          }
+        }
+
+        // Reset the star's position
+        float angle = random(0, 360) * PI / 180.0f;
+        float maxRadius = sqrt((SCREEN_WIDTH / 2.0f) * (SCREEN_WIDTH / 2.0f) + (SCREEN_HEIGHT / 2.0f) * (SCREEN_HEIGHT / 2.0f));
+        float distance = random(10, maxRadius);
+        stars[i].realX = centerX + cos(angle) * distance;
+        stars[i].realY = centerY + sin(angle) * distance;
+        stars[i].x = roundf(stars[i].realX);
+        stars[i].y = roundf(stars[i].realY);
+        stars[i].brightness = random(150, 256);
+
+        // Clear the previous position buffer
+        for (int j = 0; j <= MAX_STREAK_LENGTH; j++)
+        {
+          prevX[i][j] = SCREEN_WIDTH;
+          prevY[i][j] = SCREEN_HEIGHT;
+        }
+      }
+      else
+      {
+        // Star is still on screen
+        stars[i].x = newX;
+        stars[i].y = newY;
       }
     }
-    else
-    {
-      // Star is still on screen
-      stars[i].x = newX;
-      stars[i].y = newY;
-    }
-  } // End of STAR_COUNT loop
+  }
 }
 
 /**
@@ -2533,7 +2684,7 @@ void powerOff()
   tft.setCursor(shutX, shutY);
   tft.print(shutting);
 
-  delay(3500);
+  delay(3000);
 
   // Turn off display
   digitalWrite(TFT_LED, LOW);
