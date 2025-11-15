@@ -49,7 +49,8 @@
 
 #include <TFT_eSPI.h> // Replace Adafruit_GFX and Adafruit_ST7735
 #include <SPI.h>
-#include "star.h" // Include star.h first so the Star struct is defined
+#include "animation_utils.h" // Animation utilities for exit animation optimization
+#include "star.h"            // Include star.h first so the Star struct is defined
 #include "blackhole.h"
 #include "pulsar.h"     // Include the pulsar header file
 #include "supernova.h"  // Include the supernova header file
@@ -107,6 +108,11 @@ static void drawXBitmapBitSwap(int16_t x, int16_t y, const unsigned char *bitmap
 bool quizActive = false;
 #include <esp_sleep.h>
 #include <driver/rtc_io.h>
+#include <esp_wifi.h>
+#include <esp_bt.h>
+#include <driver/gpio.h>
+#include <WiFi.h>
+#include <esp_heap_caps.h> // For PSRAM verification
 
 // Include LED animations header
 #include "led_animations.h"
@@ -114,11 +120,41 @@ bool quizActive = false;
 // Add this include for buzzer sounds
 #include "buzzer_sounds.h"
 
+// Add this include for celestial animations
+#include "celestial_animations.h"
+
+// Debug output control (set to 0 to disable Serial output in production)
+#define DEBUG_MODE 1
+
+#if DEBUG_MODE
+#define DEBUG_PRINT(x) Serial.print(x)
+#define DEBUG_PRINTLN(x) Serial.println(x)
+#define DEBUG_PRINTF(...) Serial.printf(__VA_ARGS__)
+#else
+#define DEBUG_PRINT(x)
+#define DEBUG_PRINTLN(x)
+#define DEBUG_PRINTF(...)
+#endif
+
 // Power management defines
-#define BUTTON_PIN 1         // Make sure this matches your actual button pin
-#define SECOND_BUTTON_PIN 3  // Secondary button pin for showing object facts
+// Changed from GPIO 1 and 3 to avoid conflict with Serial (TXD0/RXD0)
+// GPIO 1 = TXD0 (Serial Transmit), GPIO 3 = RXD0 (Serial Receive)
+// GPIO 4 is RTC_GPIO_10, which is REQUIRED for deep sleep wake-up (EXT0)
+// GPIO 15 is a safe general-purpose pin with no special boot functions
+// NOTE: GPIO 10 and 11 are used by TFT display (TFT_RST=10, TFT_MOSI=11)
+// NOTE: GPIO 6 and 14 are also taken by other hardware
+#define BUTTON_PIN 4         // Primary button pin - RTC_GPIO_10 (required for deep sleep wake-up)
+#define SECOND_BUTTON_PIN 15 // Secondary button pin - safe general-purpose pin
 #define LONG_PRESS_TIME 3000 // Time in milliseconds for a long press to power off
 #define SHORT_PRESS_TIME 50  // Minimum time for a valid short press
+
+// Magic number constants
+const unsigned long DEBOUNCE_DELAY_MS = 300;
+const unsigned long SECOND_DEBOUNCE_DELAY_MS = 300;
+const unsigned long QUIZ_HELPLINE_DEBOUNCE_MS = 300;
+const int ADC_MAX_VALUE = 4095;
+const int ADC_READINGS_COUNT = 4;
+const int QUIZ_NUM_OPTIONS = 4;
 
 // Power management variables
 bool powerOffRequested = false;
@@ -126,7 +162,6 @@ unsigned long buttonPressStartTime = 0;
 // Secondary button for object facts in discovery mode
 static bool secondButtonPressed = false;
 static unsigned long secondLastButtonTime = 0;
-const unsigned long SECOND_DEBOUNCE_DELAY = 300; // ms debounce for secondary button
 // Persistent fact panel state
 static bool factPopupActive = false;
 static String factText = "";
@@ -135,7 +170,6 @@ static String factText = "";
 bool quizHelplineActive = false;
 int quizHelplineIndices[2] = {-1, -1};
 unsigned long quizHelplineLastButtonTime = 0;
-const unsigned long QUIZ_HELPLINE_DEBOUNCE = 300; // ms debounce for quiz helpline
 
 bool soundSettingsPopupActive = false;
 
@@ -275,6 +309,25 @@ void initColors()
 float warpFactor = 0.0f;               // 0.0 (no warp) to 1.0 (full warp)
 bool warpEnabled = false;              // Warp mode toggle
 constexpr float MIN_WARP_SPEED = 0.5f; // Minimum speed to avoid static stars
+
+// Warp substates for seamless exit animations
+enum class WarpSubstate
+{
+  NONE,          // Normal warp or not warping
+  EXITING_OBJECT // Exiting celestial object - warp stars active, object scaling out
+};
+WarpSubstate warpSubstate = WarpSubstate::NONE;
+unsigned long exitAnimationStart = 0;
+const unsigned long EXIT_ANIMATION_DURATION = 1000; // 1 second exit animation
+
+// Exit animation snapshot optimization
+// Instead of re-animating the celestial object during exit, we freeze its animation state
+// This prevents expensive re-computation of complex animations (rotation, pulsing, etc.)
+SpriteHandle exitSnapshotSprite = {0};
+bool exitSnapshotCaptured = false;
+unsigned long frozenAnimationTime = 0; // Frozen millis() value for animation calculations
+int exitSnapshotCenterX = 0;           // Store center position for proper scaling
+int exitSnapshotCenterY = 0;
 
 // Haptic feedback override for special events
 bool hapticOverrideActive = false;
@@ -673,36 +726,50 @@ bool prevShouldWarp = false;
 bool showingCelestialObject = false;
 bool discoveryObjectSoundPlayed = false; // Track if sound has been played for current object
 
+// Animation state variables
+bool animationEnabled = true; // Global toggle for animations
+bool arrivalAnimationStarted = false;
+bool exitAnimationStarted = false;
+unsigned long discoveryEndTime = 0;
+const unsigned long DISCOVERY_DURATION = 8000; // 8 seconds to view object
+
+// Animation configuration
+const bool ENABLE_ARRIVAL_ANIMATIONS = false; // temporarily disabled
+const bool ENABLE_EXIT_ANIMATIONS = false;    // temporarily disabled
+const unsigned long ARRIVAL_PROBABILITY = 60; // 60% chance (less frequent)
+const unsigned long EXIT_PROBABILITY = 100;   // 100% chance when entering warp
+const bool ANIMATION_DEBUG = true;            // Enable debug output
+const bool USE_DOUBLE_BUFFER = false;         // Disable double buffering to eliminate flickering
+
 // Using structs and variables defined in blackhole.h
 uint16_t prevPhotonRingColor;
 
-// Utility function for easing
-float easeInOutCubic(float t)
-{
-  return t < 0.5f ? 4.0f * t * t * t : 1.0f - powf(-2.0f * t + 2.0f, 3) / 2.0f;
-}
+// Utility function for easing - moved to celestial_animations.cpp to avoid duplicate definition
 
 // Add this to the global variables section after the celestial object enum
 bool objectsShown[static_cast<int>(CelestialObject::NUM_TYPES)] = {false}; // Track which objects have been shown
 int objectsRemaining = static_cast<int>(CelestialObject::NUM_TYPES);       // Count of objects not yet shown
 
 // Menu system
-#define MENU_ITEMS 3
 struct MenuItem
 {
   const char *name;
   State state;
 };
 
-MenuItem menuItems[MENU_ITEMS] = {
+MenuItem menuItems[] = {
     {"Discovery", State::DISCOVERY},
     {"Quiz", State::QUIZ},
     {"Story", State::STORY}};
+
+// Calculate menu items count from array size to prevent mismatches
+#define MENU_ITEMS (sizeof(menuItems) / sizeof(menuItems[0]))
 int currentMenuItem = 0;
 
 // Forward declarations for functions that are used before they're defined
 void typewriterText(const char *text, int delayMs);
 void initializeAccretionParticle(int index, int centerX, int centerY);
+void initializeSystem(bool displayAlreadyInitialized = false);
 
 // Forward declarations for LED functions
 void setLedModeMenu(int currentSelection, int numItems);
@@ -710,6 +777,12 @@ void setLedModeQuiz(bool answerCorrect, bool waitingForAnswer);
 void setLedModeOff();
 void setLedModeStory();
 void setLedModeWarp();
+
+// Forward declarations for animation functions
+void toggleAnimations();
+void setAnimationEnabled(bool enabled);
+
+// Animation buffer for double buffering (declared in celestial_animations.cpp)
 
 // Add new variable to track power state
 bool isPoweredOn = true; // Start powered on
@@ -794,16 +867,29 @@ void initWarpBuffer()
     warpBuffer = (uint16_t *)ps_malloc(bufferSize);
     if (warpBuffer != nullptr)
     {
-      // Initialize buffer to black
-      memset(warpBuffer, 0, bufferSize);
-      bufferInitialized = true;
-      // Ensure RGB565 buffer byte order matches panel expectation for pushImage
-      tft.setSwapBytes(true);
-      Serial.printf("Warp buffer initialized successfully. Size: %d bytes\n", bufferSize);
+      // Issue #15 fix: Validate full buffer allocation by testing last byte
+      size_t lastIndex = (bufferSize / sizeof(uint16_t)) - 1;
+      warpBuffer[lastIndex] = 0x0000;
+      if (warpBuffer[lastIndex] == 0x0000)
+      {
+        // Initialize buffer to black
+        memset(warpBuffer, 0, bufferSize);
+        bufferInitialized = true;
+        // Ensure RGB565 buffer byte order matches panel expectation for pushImage
+        tft.setSwapBytes(true);
+        DEBUG_PRINTF("Warp buffer initialized successfully. Size: %d bytes\n", bufferSize);
+      }
+      else
+      {
+        // Buffer allocation incomplete - free and fall back to direct drawing
+        free(warpBuffer);
+        warpBuffer = nullptr;
+        DEBUG_PRINTLN("Warp buffer allocation incomplete - using direct drawing");
+      }
     }
     else
     {
-      Serial.println("Failed to allocate warp buffer - using direct drawing");
+      DEBUG_PRINTLN("Failed to allocate warp buffer - using direct drawing");
     }
   }
 }
@@ -822,31 +908,139 @@ void cleanupWarpBuffer()
   }
 }
 
+/**
+ * Robust PSRAM initialization and verification function
+ * Returns true if PSRAM is available and working, false otherwise
+ */
+bool initializeAndVerifyPSRAM()
+{
+  Serial.println("\n=== PSRAM INITIALIZATION & VERIFICATION ===");
+
+#if defined(ESP32)
+  // Check if PSRAM is available on this board
+  bool psramAvailable = false;
+  size_t totalPsram = 0;
+  size_t freePsram = 0;
+
+  // Try to get PSRAM size - this works even if psramInit() wasn't called
+  totalPsram = ESP.getPsramSize();
+  freePsram = ESP.getFreePsram();
+
+  if (totalPsram > 0)
+  {
+    Serial.printf("✓ PSRAM detected: %u bytes total\n", totalPsram);
+    psramAvailable = true;
+  }
+  else
+  {
+    Serial.println("✗ No PSRAM detected on this board");
+    Serial.println("  Note: Some ESP32-S3 boards auto-initialize PSRAM");
+
+// On ESP32-S3, PSRAM might be auto-initialized, try to initialize explicitly
+#if defined(BOARD_HAS_PSRAM)
+    Serial.println("  Attempting explicit initialization...");
+    if (psramInit())
+    {
+      totalPsram = ESP.getPsramSize();
+      freePsram = ESP.getFreePsram();
+      if (totalPsram > 0)
+      {
+        Serial.printf("✓ PSRAM initialized successfully: %u bytes total\n", totalPsram);
+        psramAvailable = true;
+      }
+    }
+    else
+    {
+      Serial.println("  ✗ Explicit initialization failed");
+    }
+#endif
+  }
+
+  if (psramAvailable)
+  {
+    Serial.printf("  Free PSRAM: %u bytes (%.1f%% available)\n", freePsram, (freePsram * 100.0f) / totalPsram);
+
+    // Verify PSRAM actually works by allocating and freeing test memory
+    Serial.println("  Verifying PSRAM functionality...");
+    const size_t testSize = 10240; // 10KB test allocation
+    void *testPtr = heap_caps_malloc(testSize, MALLOC_CAP_SPIRAM);
+
+    if (testPtr != nullptr)
+    {
+      // Test write/read to ensure it's actually working
+      uint8_t *testBytes = (uint8_t *)testPtr;
+      bool writeSuccess = true;
+      for (size_t i = 0; i < testSize && i < 100; i++) // Test first 100 bytes
+      {
+        testBytes[i] = (uint8_t)(i & 0xFF);
+        if (testBytes[i] != (uint8_t)(i & 0xFF))
+        {
+          writeSuccess = false;
+          break;
+        }
+      }
+
+      heap_caps_free(testPtr);
+
+      if (writeSuccess)
+      {
+        Serial.println("  ✓ PSRAM verification successful - memory allocation and access working");
+        Serial.println("=== PSRAM READY ===\n");
+        return true;
+      }
+      else
+      {
+        Serial.println("  ✗ PSRAM verification failed - memory access test failed");
+        Serial.println("=== PSRAM NOT READY ===\n");
+        return false;
+      }
+    }
+    else
+    {
+      Serial.printf("  ✗ PSRAM verification failed - could not allocate %u bytes\n", testSize);
+      Serial.printf("    Available PSRAM reported: %u bytes\n", ESP.getFreePsram());
+      Serial.println("=== PSRAM NOT READY ===\n");
+      return false;
+    }
+  }
+  else
+  {
+    Serial.println("=== PSRAM NOT AVAILABLE ===\n");
+    return false;
+  }
+
+#else
+  Serial.println("Not an ESP32 board - PSRAM check skipped");
+  Serial.println("=== PSRAM CHECK SKIPPED ===\n");
+  return false;
+#endif
+}
+
 void setup()
 {
   pinMode(VIBRATION_PIN, OUTPUT);
   digitalWrite(VIBRATION_PIN, LOW); // Ensure vibration is off initially
   Serial.begin(9600);               // Move Serial.begin to top for debugging
 
+  // Disable WiFi and Bluetooth completely for power savings
+  WiFi.mode(WIFI_OFF);
+  btStop();
+  esp_wifi_stop();
+  esp_bt_controller_disable();
+  Serial.println("WiFi and Bluetooth disabled for power savings");
+
   // Initialize the buzzer
   initBuzzer();
 
-  Serial.println("--- PSRAM CHECK START ---");
-#if defined(ESP32) && defined(BOARD_HAS_PSRAM)
-  if (psramInit())
+  // Initialize and verify PSRAM
+  bool psramReady = initializeAndVerifyPSRAM();
+
+  if (!psramReady)
   {
-    Serial.printf("PSRAM initialized successfully. Total PSRAM: %u, Free PSRAM: %u\n", ESP.getPsramSize(), ESP.getFreePsram());
+    Serial.println("WARNING: PSRAM is not available or not working correctly!");
+    Serial.println("Graphics performance may be degraded. Continuing anyway...");
+    delay(1000); // Give user time to see the warning
   }
-  else
-  {
-    Serial.println("PSRAM initialization FAILED.");
-  }
-#elif defined(ESP32)
-  Serial.printf("Board might have PSRAM, but psramInit() not explicitly called or BOARD_HAS_PSRAM not defined. Free PSRAM: %u\n", ESP.getFreePsram());
-#else
-  Serial.println("Not an ESP32 or PSRAM check not configured for this board.");
-#endif
-  Serial.println("--- PSRAM CHECK END ---");
 
   // Configure pins
   pinMode(TFT_LED, OUTPUT);
@@ -859,12 +1053,98 @@ void setup()
   if (wakeup_reason == ESP_SLEEP_WAKEUP_EXT0)
   {
     // We woke up from button press
-    Serial.println("Waking from deep sleep");
-    isPoweredOn = true;
+    Serial.println("=== WAKE FROM DEEP SLEEP ===");
+    Serial.printf("Wake-up reason: Button press (EXT0)\n");
+    Serial.printf("Time in deep sleep: %llu ms\n", esp_timer_get_time() / 1000);
+
+    // Release GPIO holds from deep sleep FIRST (before reconfiguring pins)
+    gpio_deep_sleep_hold_dis();
+    gpio_hold_dis((gpio_num_t)TFT_LED);
+    gpio_hold_dis((gpio_num_t)TFT_CS); // Release SPI CS pin hold
+    gpio_hold_dis((gpio_num_t)LED_PIN);
+    gpio_hold_dis((gpio_num_t)VIBRATION_PIN);
+    gpio_hold_dis((gpio_num_t)BUZZER_PIN);
+    Serial.println("GPIO holds released");
+
+    // Release RTC GPIO on primary button FIRST (before releasing holds)
+    // This ensures proper pin state before we read it
+    rtc_gpio_deinit((gpio_num_t)BUTTON_PIN);
+    delay(10); // Allow pin to stabilize
+    pinMode(BUTTON_PIN, INPUT_PULLUP);
+    delay(50); // Allow pullup to stabilize
+    Serial.println("Primary button re-initialized from RTC GPIO mode");
+
+    // Release RTC GPIO isolation on secondary button
+    rtc_gpio_deinit((gpio_num_t)SECOND_BUTTON_PIN);
+    delay(10); // Allow pin to stabilize
+    pinMode(SECOND_BUTTON_PIN, INPUT_PULLUP);
+    delay(50); // Allow pullup to stabilize
+    Serial.println("Secondary button re-initialized");
+
+    // Reset ALL button state variables after wake-up (synchronize all state)
+    // This ensures checkPowerButton() and other functions start with clean state
+    secondButtonPressed = false;
+    secondLastButtonTime = 0;
+    factPopupActive = false;
+    factText = "";
+    powerOffRequested = false;
+    buttonPressStartTime = millis(); // Reset to current time (not 0)
+    Serial.println("Button and UI state variables reset");
+
+    // Wait for button to be fully released after wake-up press
+    delay(100);
+    while (digitalRead(BUTTON_PIN) == LOW)
+    {
+      delay(10); // Wait for user to release the wake-up button
+    }
+    delay(DEBOUNCE_DELAY_MS); // Use full debounce delay (300ms) instead of 50ms
+    Serial.println("Wake-up button released and debounced");
+
+    // Re-disable WiFi/BLE on wake for power savings
+    WiFi.mode(WIFI_OFF);
+    btStop();
+    Serial.println("WiFi/BLE re-disabled after wake");
+
+    // PSRAM power domain is automatically re-enabled on wake-up
+    // No explicit call needed
+
+    // ADC is automatically re-enabled on ESP32-S3 after deep sleep
+    // No explicit call needed - will work when analogRead() is called
+
+    // ============================================================
+    // Restore SPI pins before initializing display
+    // ============================================================
+    // Release SPI CS pin hold
+    gpio_hold_dis((gpio_num_t)TFT_CS);
+
+    // Reconfigure SPI pins for display communication
+    pinMode(TFT_CS, OUTPUT);
+    digitalWrite(TFT_CS, HIGH); // De-select initially
+    pinMode(TFT_DC, OUTPUT);
+    pinMode(TFT_RST, OUTPUT);
+    pinMode(TFT_MOSI, OUTPUT);
+    pinMode(TFT_SCLK, OUTPUT);
+
+    // Reinitialize SPI
+    SPI.begin();
+    delay(10);
+    Serial.println("SPI pins restored and SPI reinitialized");
 
     // Initialize display
+    Serial.println("Turning on backlight (wake from sleep)...");
+    pinMode(TFT_LED, OUTPUT);
     digitalWrite(TFT_LED, HIGH);
+    delay(50); // Small delay to ensure backlight is stable
+
+    Serial.println("Initializing TFT display (wake from sleep)...");
     tft.init();
+    delay(100); // Delay after init for GMT020-02-7P v1.3
+
+    // Wake TFT display from sleep mode (must be done after init)
+    tft.writecommand(0x11); // SLPOUT - Exit sleep mode
+    delay(120);             // Wait for display to wake up
+    Serial.println("TFT display woken from sleep mode");
+
     tft.setRotation(0);
     initColors();
     tft.fillScreen(COLOR_BG);
@@ -876,25 +1156,58 @@ void setup()
     tft.print("Warp Drive Loading...");
     delay(100);
 
-    // Continue with normal initialization
-    initializeSystem();
+    // Continue with normal initialization (display already initialized, so skip re-init)
+    initializeSystem(true); // Pass true to indicate display is already initialized
+
+    // Power state validation: Check if button is still pressed after all initialization
+    // This prevents false power-on if button was held through the wake transition
+    if (digitalRead(BUTTON_PIN) == LOW)
+    {
+      // Button still pressed after initialization - ignore and wait for release
+      Serial.println("WARNING: Button still pressed after initialization, waiting for release...");
+      while (digitalRead(BUTTON_PIN) == LOW)
+      {
+        delay(10);
+      }
+      delay(DEBOUNCE_DELAY_MS); // Full debounce after release
+      Serial.println("Button released after initialization delay");
+    }
+
+    // NOW it's safe to set powered on (all hardware initialized and button validated)
+    isPoweredOn = true;
+    Serial.println("System fully powered on and ready");
   }
   else
   {
     // Normal power-on
     Serial.println("Normal power-on");
     isPoweredOn = true;
+
+    // Initialize SPI before display initialization
+    pinMode(TFT_CS, OUTPUT);
+    digitalWrite(TFT_CS, HIGH); // De-select initially
+    pinMode(TFT_DC, OUTPUT);
+    pinMode(TFT_RST, OUTPUT);
+    pinMode(TFT_MOSI, OUTPUT);
+    pinMode(TFT_SCLK, OUTPUT);
+    SPI.begin();
+    delay(10);
+    Serial.println("SPI initialized for normal power-on");
+
+    // Turn on backlight before initializing display
     digitalWrite(TFT_LED, HIGH);
+    delay(50); // Small delay to ensure backlight is stable
+
     initializeSystem();
   }
 }
 
 // Add this new function to handle system initialization
-void initializeSystem()
+void initializeSystem(bool displayAlreadyInitialized)
 {
-  initializeScaling(); // Initialize scaling factors first
-  // tft.setAttribute(PSRAM_ENABLE, true); // <<<< Temporarily commented out for testing PSRAM issue
-  Serial.printf("Inside initializeSystem, (global tft PSRAM_ENABLE is OFF for this test) - Free PSRAM: %u, Free Heap: %u\n", ESP.getFreePsram(), ESP.getFreeHeap());
+  initializeScaling();                  // Initialize scaling factors first
+  tft.setAttribute(PSRAM_ENABLE, true); // <<<< Temporarily commented out for testing PSRAM issue
+  // Serial.printf("Inside initializeSystem, (global tft PSRAM_ENABLE is OFF for this test) - Free PSRAM: %u, Free Heap: %u\n", ESP.getFreePsram(), ESP.getFreeHeap());
 
   // Reset menu buffer data when system initializes
   g_boxY = SCREEN_HEIGHT * 0.25;
@@ -907,10 +1220,49 @@ void initializeSystem()
   // Rest of initialization
   pinMode(VIBRATION_PIN, OUTPUT);
   digitalWrite(VIBRATION_PIN, LOW); // Ensure vibration is off at system init
-  tft.init();
-  tft.setRotation(0);
-  initColors();
-  tft.fillScreen(COLOR_BG);
+
+  // Only initialize display if not already done (e.g., when waking from sleep)
+  if (!displayAlreadyInitialized)
+  {
+    // Turn on backlight BEFORE initializing display (GMT020-02-7P v1.3 requirement)
+    DEBUG_PRINTLN("Turning on backlight...");
+    digitalWrite(TFT_LED, HIGH);
+    delay(50); // Small delay to ensure backlight is stable
+
+    // Hardware reset sequence - fixes Bug 1: Black screen on first power-on
+    // This ensures the display is in a known state before initialization
+    DEBUG_PRINTLN("Forcing hardware reset on TFT_RST...");
+    pinMode(TFT_RST, OUTPUT);
+    digitalWrite(TFT_RST, LOW);
+    delay(20); // Hold reset low
+    digitalWrite(TFT_RST, HIGH);
+    delay(150); // Wait for display to recover
+    DEBUG_PRINTLN("Hardware reset complete");
+
+    DEBUG_PRINTLN("Initializing TFT display...");
+    tft.init();
+    delay(100); // Delay after init for GMT020-02-7P v1.3
+
+    // Wake TFT display from sleep mode (must be done after init)
+    // This fixes Bug 1: Black screen on first power-on
+    tft.writecommand(0x11); // SLPOUT - Exit sleep mode
+    delay(120);             // Wait for display to wake up
+    DEBUG_PRINTLN("TFT display woken from sleep mode");
+
+    DEBUG_PRINTLN("TFT display initialized.");
+    tft.setRotation(0);
+    initColors();
+    tft.fillScreen(COLOR_BG);
+    DEBUG_PRINTLN("Screen cleared with background color");
+  }
+  else
+  {
+    DEBUG_PRINTLN("Display already initialized, ensuring colors are set and screen is cleared");
+    // Ensure colors are initialized even if display was already initialized
+    initColors();
+    tft.fillScreen(COLOR_BG);
+    DEBUG_PRINTLN("Screen cleared after wake from sleep");
+  }
 
   // Initialize LEDs
   setupLeds();
@@ -925,6 +1277,7 @@ void initializeSystem()
   randomSeed(analogRead(POT_PIN));
 
   // Initialize stars for background - Updated to use screen dimensions
+  DEBUG_PRINTLN("Initializing stars...");
   for (int i = 0; i < STAR_COUNT; i++)
   {
     stars[i].x = random(0, SCREEN_WIDTH);
@@ -936,6 +1289,7 @@ void initializeSystem()
     stars[i].streakLength = 0;
     drawStar(stars[i]);
   }
+  DEBUG_PRINTLN("Stars initialized");
 
   // Initialize shooting stars
   initShootingStars();
@@ -943,8 +1297,19 @@ void initializeSystem()
   // Initialize warp buffer for smooth animation
   initWarpBuffer();
 
+  // Animation buffer disabled to eliminate flickering
+
+  // Test display is working with a simple colored rectangle
+  DEBUG_PRINTLN("Testing display with colored rectangle...");
+  tft.fillRect(10, 10, 50, 50, COLOR_GREEN);
+  delay(100);
+  tft.fillScreen(COLOR_BG);
+  DEBUG_PRINTLN("Display test complete");
+
   // Draw menu screen
+  DEBUG_PRINTLN("Drawing menu...");
   drawMenu();
+  DEBUG_PRINTLN("Menu drawn");
   setLedModeMenu(currentMenuItem, MENU_ITEMS); // Initialize LED for menu
   startMenuBackgroundMusic();                  // Start menu music when initializing system
 
@@ -1010,6 +1375,12 @@ void loop()
     switch (currentState)
     {
     case State::MENU:
+      // Reset fact popup state when entering menu (Bug #7 fix)
+      if (factPopupActive)
+      {
+        factPopupActive = false;
+        hideFactPopup();
+      }
       // Process menu navigation and selection
       processMenuInput();
       // Update background stars
@@ -1069,10 +1440,10 @@ void loop()
           // Secondary button press to show story fact popup
           {
             bool secBtn = digitalRead(SECOND_BUTTON_PIN) == LOW;
-            if (secBtn && !secondButtonPressed && millis() - secondLastButtonTime > SECOND_DEBOUNCE_DELAY)
+            if (secBtn && !secondButtonPressed && millis() - secondLastButtonTime > SECOND_DEBOUNCE_DELAY_MS)
             {
+              secondLastButtonTime = millis(); // Update time BEFORE processing to prevent race condition
               secondButtonPressed = true;
-              secondLastButtonTime = millis();
               if (!factPopupActive)
               {
                 factText = storyModeManager.getCurrentFact();
@@ -1093,13 +1464,7 @@ void loop()
               secondButtonPressed = false;
             }
           }
-          // Keep story fact popup visible if active
-          if (factPopupActive)
-          {
-            // Ensure the narration box is hidden behind the popup
-            tft.fillRect(0, SCREEN_HEIGHT - SCREEN_HEIGHT / 4, SCREEN_WIDTH, SCREEN_HEIGHT / 4, BG_COLOR);
-            drawFactPopup();
-          }
+          // Fact popup is drawn once when activated and doesn't need redrawing every frame
         }
       }
       break;
@@ -1142,9 +1507,27 @@ void loop()
       // Update shooting stars every frame as they are important for visual appeal
       updateShootingStars();
 
+      // Update animations (speed controlled by warp speed in future)
+      updateAnimations();
+
+      // Note: Exit animation is now triggered when entering warp mode, not auto-exit
+
       // Only draw celestial objects if in discovery mode and object should be shown
       if (currentState == State::DISCOVERY && showingCelestialObject)
       {
+        // Start arrival animation if not started yet (skip for comets and asteroid fields)
+        if (!arrivalAnimationStarted && animationEnabled && ENABLE_ARRIVAL_ANIMATIONS &&
+            currentObject != CelestialObject::COMET && currentObject != CelestialObject::ASTEROID_FIELD &&
+            random(100) < ARRIVAL_PROBABILITY)
+        {
+          AnimationType arrivalType = getArrivalAnimation();
+          startArrivalAnimation(arrivalType);
+          arrivalAnimationStarted = true;
+          if (ANIMATION_DEBUG)
+          {
+            Serial.printf("[Animation] Started arrival animation: %d\n", (int)arrivalType);
+          }
+        }
         // Set LED mode for discovery with the current object name
         switch (currentObject)
         {
@@ -1216,10 +1599,10 @@ void loop()
       // Secondary button press to show object fact
       {
         bool secBtn = digitalRead(SECOND_BUTTON_PIN) == LOW;
-        if (secBtn && !secondButtonPressed && millis() - secondLastButtonTime > SECOND_DEBOUNCE_DELAY)
+        if (secBtn && !secondButtonPressed && millis() - secondLastButtonTime > SECOND_DEBOUNCE_DELAY_MS)
         {
+          secondLastButtonTime = millis(); // Update time BEFORE processing to prevent race condition
           secondButtonPressed = true;
-          secondLastButtonTime = millis();
           // Toggle fact panel
           if (!factPopupActive)
           {
@@ -1307,13 +1690,10 @@ void loop()
           secondButtonPressed = false;
         }
       }
-      // Keep fact panel visible if active
-      if (factPopupActive)
-      {
-        // Ensure the narration box is hidden behind the popup
-        tft.fillRect(0, SCREEN_HEIGHT - SCREEN_HEIGHT / 4, SCREEN_WIDTH, SCREEN_HEIGHT / 4, BG_COLOR);
-        drawFactPopup();
-      }
+      // Fact popup is drawn once when activated and doesn't need redrawing every frame
+
+      // Note: Exit animation completion is now handled in warp mode transition
+
       break;
     }
 
@@ -1352,22 +1732,21 @@ void readPotentiometer()
 {
   // Take multiple readings for stability
   int rawValue = 0;
-  const int numReadings = 4;
 
-  for (int i = 0; i < numReadings; i++)
+  for (int i = 0; i < ADC_READINGS_COUNT; i++)
   {
     // Invert the reading (4095 - value) to reverse the potentiometer direction
-    rawValue += 4095 - analogRead(POT_PIN);
+    rawValue += ADC_MAX_VALUE - analogRead(POT_PIN);
   }
 
   // Average the readings and store in potValue (0-4095 range for 12-bit ADC)
-  potValue = rawValue / numReadings;
+  potValue = rawValue / ADC_READINGS_COUNT;
 }
 
 void processInput()
 {
   // Scale from 0-4095 to 0-1.0 for 12-bit ADC
-  float rawWarpFactor = static_cast<float>(potValue) / 4095.0f;
+  float rawWarpFactor = static_cast<float>(potValue) / static_cast<float>(ADC_MAX_VALUE);
   warpFactor = easeInOutCubic(rawWarpFactor);
   // Use a more precise threshold for 12-bit ADC (about 2.5% of full scale)
   bool shouldWarp = (potValue > 100);
@@ -1381,10 +1760,10 @@ void processInput()
     if (digitalRead(BUTTON_PIN) == LOW && !buttonPressed)
     {
       unsigned long currentTime = millis();
-      if (currentTime - lastButtonTime > 300)
-      { // Debounce
-        buttonPressed = true;
+      if (currentTime - lastButtonTime > DEBOUNCE_DELAY_MS)
+      { // Debounce - update time BEFORE processing to prevent race condition
         lastButtonTime = currentTime;
+        buttonPressed = true;
 
         // Play beep sound for button press exiting Discovery
         playUISound_Beep();
@@ -1410,6 +1789,13 @@ void processInput()
           // Force another cleanup and screen redraw
           cleanupAllCelestialObjectSprites();
           delay(10); // Small delay to allow memory management
+        }
+
+        // Close fact popup when exiting to menu
+        if (factPopupActive)
+        {
+          factPopupActive = false;
+          hideFactPopup();
         }
 
         // Return to menu with screen clear
@@ -1461,18 +1847,38 @@ void processInput()
         // Sprite destruction handled by eraseCelestialObject -> cleanupAllCelestialObjectSprites below
       }
 
-      // Now do the standard cleanup for all objects
-      eraseCelestialObject(); // This should now use SpriteManager::destroy via cleanupAllCelestialObjectSprites
-      showingCelestialObject = false;
+      // NEW APPROACH: Start exit animation inside warp mode
+      // This provides seamless star movement using the existing warp pipeline
+      if (animationEnabled && ENABLE_EXIT_ANIMATIONS &&
+          currentObject != CelestialObject::COMET && currentObject != CelestialObject::ASTEROID_FIELD &&
+          random(100) < EXIT_PROBABILITY)
+      {
+        // Activate exit animation substate
+        warpSubstate = WarpSubstate::EXITING_OBJECT;
+        exitAnimationStart = millis();
 
-      // Do one final check for any lingering sprites
-      // cleanupAllCelestialObjectSprites(); // This is now called inside eraseCelestialObject potentially, or needs adjustment
-      // Let's rely on eraseCelestialObject to handle its own sprite.
-      // A broader cleanup might be needed if eraseCelestialObject doesn't cover everything.
-      // For now, assume eraseCelestialObject handles its own sprite.
+        // Start the exit animation for scale tracking
+        AnimationType exitType = getExitAnimation();
+        startExitAnimation(exitType);
 
-      // Allow some time for memory operations to complete
-      delay(20);
+        // PERFORMANCE OPTIMIZATION: Freeze object animations during exit
+        // This prevents expensive re-computation of animations while scaling
+        captureExitSnapshot();
+
+        if (ANIMATION_DEBUG)
+        {
+          Serial.printf("[Animation] Started exit animation in warp mode: %d\n", (int)exitType);
+        }
+
+        // Note: Object will be erased when exit animation completes in the warp rendering loop
+        // No immediate cleanup - let warp mode handle the transition
+      }
+      else
+      {
+        // No exit animation - immediately erase and cleanup
+        eraseCelestialObject();
+        showingCelestialObject = false;
+      }
     }
 
     // Clean up any active shooting stars before entering warp mode
@@ -1604,7 +2010,13 @@ void processInput()
       // Set the current object
       currentObject = static_cast<CelestialObject>(objectIndex);
       discoveryStartTime = millis();
+      discoveryEndTime = discoveryStartTime + DISCOVERY_DURATION;
       discoveryObjectSoundPlayed = false; // Reset sound flag for new object
+
+      // Reset animation states
+      arrivalAnimationStarted = false;
+      exitAnimationStarted = false;
+      resetAnimations();
 
       // Play discovery object sound based on object type
       switch (currentObject)
@@ -1808,6 +2220,81 @@ void updateStars()
 // Implementation moved to star.h
 
 /**
+ * Freezes the current animation state of the celestial object for optimized exit animation
+ * Instead of capturing a sprite, we freeze the animation time so objects render the same frame
+ * This eliminates expensive re-computation of complex animations during scaling
+ */
+void captureExitSnapshot()
+{
+  // Freeze the current animation time - all animated objects will use this instead of millis()
+  frozenAnimationTime = millis();
+  exitSnapshotCaptured = true;
+
+  // Store center position for reference (though objects already know their position)
+  exitSnapshotCenterX = objectX;
+  exitSnapshotCenterY = objectY;
+
+  if (ANIMATION_DEBUG)
+  {
+    Serial.printf("[Exit Animation] Animation frozen at t=%lu ms\n", frozenAnimationTime);
+  }
+}
+
+/**
+ * Handles exit animation rendering when in EXITING_OBJECT warp substate
+ * Draws the scaling celestial object on top of warp stars for seamless transition
+ * OPTIMIZED: Uses frozen object state instead of re-animating
+ */
+void handleExitAnimation()
+{
+  static unsigned long lastExitDraw = 0;
+  const unsigned long EXIT_DRAW_INTERVAL_MS = 33; // ~30 FPS throttle for object draw
+
+  // Calculate exit animation progress (0.0 to 1.0)
+  unsigned long elapsed = millis() - exitAnimationStart;
+  float progress = (float)elapsed / (float)EXIT_ANIMATION_DURATION;
+
+  if (progress >= 1.0f)
+  {
+    // Animation complete - cleanup and return to normal warp
+    progress = 1.0f;
+    warpSubstate = WarpSubstate::NONE;
+
+    // Unfreeze animations
+    exitSnapshotCaptured = false;
+    frozenAnimationTime = 0;
+
+    // Clean up exit snapshot sprite if it was created (Bug #6 fix)
+    if (exitSnapshotSprite.id != 0)
+    {
+      SpriteManager::destroy(exitSnapshotSprite);
+      exitSnapshotSprite = {0};
+    }
+
+    // Erase the celestial object and cleanup
+    eraseCelestialObject();
+    showingCelestialObject = false;
+
+    if (ANIMATION_DEBUG)
+    {
+      DEBUG_PRINTLN("[Exit Animation] Exit animation complete - object cleaned up");
+    }
+    return;
+  }
+
+  // Update animation state (for scale calculation)
+  updateAnimations();
+
+  // Draw the celestial object with exit animation applied
+  // The exitSnapshotCaptured flag tells draw functions to skip internal animations
+  if (showingCelestialObject && (millis() - lastExitDraw) >= EXIT_DRAW_INTERVAL_MS)
+  {
+    drawCelestialObject();
+    lastExitDraw = millis();
+  }
+}
+
+/**
  * Updates and renders stars in warp mode with double buffering for smooth animation
  * Creates the iconic Star Trek warp effect with stars stretching based on distance from center
  */
@@ -1859,6 +2346,8 @@ void updateWarpStars()
       // Scale streak length with screen size
       int streakLength = static_cast<int>(warpFactor *
                                           std::min(distance / 2.0f, baseStreakLength));
+      // Bug #12 fix: Clamp streakLength to prevent array overflow
+      streakLength = std::min(streakLength, MAX_STREAK_LENGTH);
       stars[i].streakLength = streakLength;
 
       // Draw streak to buffer
@@ -1918,6 +2407,12 @@ void updateWarpStars()
 
     // Debug: Print some buffer values to see what's in there
     // Serial.printf("Buffer[0]: 0x%04X, Buffer[1]: 0x%04X\n", warpBuffer[0], warpBuffer[1]);
+
+    // Handle exit animation: draw scaling object on top of warp stars
+    if (warpSubstate == WarpSubstate::EXITING_OBJECT)
+    {
+      handleExitAnimation();
+    }
   }
   else
   {
@@ -1959,6 +2454,8 @@ void updateWarpStars()
       // Scale streak length with screen size
       int streakLength = static_cast<int>(warpFactor *
                                           std::min(distance / 2.0f, baseStreakLength));
+      // Bug #12 fix: Clamp streakLength to prevent array overflow
+      streakLength = std::min(streakLength, MAX_STREAK_LENGTH);
       stars[i].streakLength = streakLength;
 
       // Draw streak with optimized bounds checking
@@ -1970,11 +2467,8 @@ void updateWarpStars()
         if (streakX >= 0 && streakX < SCREEN_WIDTH &&
             streakY >= 0 && streakY < SCREEN_HEIGHT)
         {
-          if (j <= MAX_STREAK_LENGTH)
-          {
-            prevX[i][j] = streakX;
-            prevY[i][j] = streakY;
-          }
+          prevX[i][j] = streakX;
+          prevY[i][j] = streakY;
 
           // Fade: head bright -> tail dim (same curve as buffered path)
           float t = (streakLength > 0) ? (float)j / (float)streakLength : 0.0f;
@@ -1983,7 +2477,7 @@ void updateWarpStars()
           uint16_t color = tft.color565(intensity, intensity, intensity);
           tft.drawPixel(streakX, streakY, color);
         }
-        else if (j <= MAX_STREAK_LENGTH)
+        else
         {
           prevX[i][j] = SCREEN_WIDTH;
           prevY[i][j] = SCREEN_HEIGHT;
@@ -2046,6 +2540,12 @@ void updateWarpStars()
         stars[i].x = newX;
         stars[i].y = newY;
       }
+    }
+
+    // Handle exit animation: draw scaling object on top of warp stars (fallback path)
+    if (warpSubstate == WarpSubstate::EXITING_OBJECT)
+    {
+      handleExitAnimation();
     }
   }
 }
@@ -2123,6 +2623,16 @@ void updateShootingStars()
   {
     if (shootingStars[i].active)
     {
+      // Early exit optimization: if star is far off-screen, skip trail erasing (Bug #8 fix)
+      float maxTrailDistance = shootingStars[i].length * abs(shootingStars[i].vx / 2) +
+                               shootingStars[i].length * abs(shootingStars[i].vy / 2);
+      if (shootingStars[i].x < -maxTrailDistance || shootingStars[i].x > SCREEN_WIDTH + maxTrailDistance ||
+          shootingStars[i].y < -maxTrailDistance || shootingStars[i].y > SCREEN_HEIGHT + maxTrailDistance)
+      {
+        shootingStars[i].active = false;
+        continue;
+      }
+
       // Erase previous position
       float oldX = shootingStars[i].x;
       float oldY = shootingStars[i].y;
@@ -2181,6 +2691,30 @@ void drawShootingStar(int index)
  */
 void drawCelestialObject()
 {
+  // Animation buffer disabled to eliminate flickering
+
+  // Apply animation effects to scale only
+  float animatedScale = objectScale;
+
+  // Apply arrival animation effects (zoom in)
+  applyArrivalEffect(animatedScale);
+
+  // Apply exit animation effects (zoom out)
+  applyExitEffect(animatedScale);
+
+  // Skip drawing if scale is too small (object is invisible)
+  if (animatedScale < 0.1f)
+  {
+    return; // Skip drawing if object is too small
+  }
+
+  // Store original values
+  float originalScale = objectScale;
+
+  // Temporarily set animated scale
+  objectScale = animatedScale;
+
+  // Animation buffer disabled to eliminate flickering
   switch (currentObject)
   {
   case CelestialObject::STAR:
@@ -2258,14 +2792,20 @@ void drawCelestialObject()
   default:
     break;
   }
+
+  // Restore original scale
+  objectScale = originalScale;
+
+  // Animation buffer disabled to eliminate flickering
 }
 
 /**
  * Erases the current celestial object by clearing its components
+ * Note: Exit animation (scale out) is now handled before calling this function
  */
 void eraseCelestialObject()
 {
-  // Display a message indicating the object is being erased
+  // Clear any animation messages
   tft.fillRect(0, SCREEN_HEIGHT - 10, SCREEN_WIDTH, 10, BG_COLOR); // Clear previous message
 
   switch (currentObject)
@@ -2546,6 +3086,7 @@ void typewriterText(const char *text, int delayMs)
 
 /**
  * Checks the power button state and handles long press for power off
+ * Uses proper debounce timing and state synchronization
  */
 void checkPowerButton()
 {
@@ -2553,45 +3094,70 @@ void checkPowerButton()
   static bool lastButtonState = HIGH;
   static unsigned long lastDebounceTime = 0;
   static unsigned long pressStartTime = 0;
-  const unsigned long debounceDelay = 50;
+  // Use the global DEBOUNCE_DELAY_MS constant instead of hardcoded 50ms
+  const unsigned long debounceDelay = DEBOUNCE_DELAY_MS;
 
   // Read button with debounce
   int reading = digitalRead(BUTTON_PIN);
 
+  // Detect button state change to reset debounce timer
   if (reading != lastButtonState)
   {
     lastDebounceTime = millis();
   }
 
+  // Only process state change after debounce delay has elapsed
   if ((millis() - lastDebounceTime) > debounceDelay)
   {
     if (reading != buttonState)
     {
       buttonState = reading;
 
-      // Button press started
+      // Button press started (LOW = pressed)
       if (buttonState == LOW)
       {
-        pressStartTime = millis();
-        Serial.println("Button pressed");
-        // Play beep sound for any main button press
-        playUISound_Beep();
+        // Only start timer if not already tracking a press
+        // This prevents restarting timer on repeated LOW readings
+        if (pressStartTime == 0)
+        {
+          pressStartTime = millis();
+          Serial.println("Button pressed");
+          // Play beep sound for any main button press
+          playUISound_Beep();
+        }
       }
-      // Button released
+      // Button released (HIGH = released)
       else
       {
-        unsigned long pressDuration = millis() - pressStartTime;
-        Serial.printf("Button released after %lu ms\n", pressDuration);
-
-        // Long press detected while powered on
-        if (pressDuration >= LONG_PRESS_TIME && isPoweredOn)
+        // Only process release if we were tracking a press
+        if (pressStartTime > 0)
         {
-          Serial.println("Long press detected - powering off");
-          isPoweredOn = false;
-          powerOffRequested = true;
-        }
+          unsigned long pressDuration = millis() - pressStartTime;
+          Serial.printf("Button released after %lu ms\n", pressDuration);
 
-        pressStartTime = 0;
+          // Long press detected while powered on
+          if (pressDuration >= LONG_PRESS_TIME && isPoweredOn)
+          {
+            Serial.println("Long press detected - powering off");
+            isPoweredOn = false;
+            powerOffRequested = true;
+          }
+
+          // Clear press start time after processing
+          pressStartTime = 0;
+        }
+      }
+    }
+    // If button is still pressed, check for long press timeout
+    else if (buttonState == LOW && pressStartTime > 0)
+    {
+      unsigned long pressDuration = millis() - pressStartTime;
+      // Check for long press while still holding button (continuous check)
+      if (pressDuration >= LONG_PRESS_TIME && isPoweredOn && !powerOffRequested)
+      {
+        Serial.println("Long press detected (still holding) - powering off");
+        isPoweredOn = false;
+        powerOffRequested = true;
       }
     }
   }
@@ -2684,29 +3250,270 @@ void powerOff()
   tft.setCursor(shutX, shutY);
   tft.print(shutting);
 
-  delay(3000);
+  // ============================================================
+  // SIMULTANEOUS POWER OFF SEQUENCE (1500ms total)
+  // All effects (sound, LED, haptic) happen in parallel
+  // ============================================================
 
-  // Turn off display
+  const unsigned long POWER_OFF_DURATION = 1500; // Total time in ms
+  unsigned long startTime = millis();
+  unsigned long currentTime = 0;
+  unsigned long elapsed = 0;
+
+  // Sound timing - 8 descending notes spread across 1500ms
+  int soundNotes[] = {NOTE_G5, NOTE_E5, NOTE_C5, NOTE_G4, NOTE_E4, NOTE_C4, NOTE_G3, NOTE_C3};
+  int soundTimings[] = {0, 190, 380, 570, 760, 950, 1140, 1330};   // When each note starts (ms)
+  int soundDurations[] = {180, 180, 180, 180, 180, 180, 180, 160}; // How long each note plays
+  int currentNoteIndex = 0;
+  bool notePlaying = false;
+  unsigned long noteStartTime = 0;
+
+  // Haptic timing - 3 pulses spread across 1500ms
+  int hapticPulses[] = {100, 600, 1100}; // When each pulse starts (ms)
+  int hapticDuration = 200;              // Each pulse lasts 200ms
+  int currentPulseIndex = 0;
+  bool pulsing = false;
+
+  // LED animation - smooth fade from 255 to 0 over 1500ms
+
+  while (elapsed < POWER_OFF_DURATION)
+  {
+    currentTime = millis();
+    elapsed = currentTime - startTime;
+
+    // --- SOUND EFFECT ---
+    if (soundEnabled && currentNoteIndex < 8)
+    {
+      if (elapsed >= soundTimings[currentNoteIndex] && !notePlaying)
+      {
+        // Start new note
+        tone(BUZZER_PIN, adjustVolume(soundNotes[currentNoteIndex]), soundDurations[currentNoteIndex]);
+        notePlaying = true;
+        noteStartTime = elapsed;
+      }
+
+      if (notePlaying && (elapsed - noteStartTime) >= soundDurations[currentNoteIndex])
+      {
+        // Note finished, move to next
+        notePlaying = false;
+        currentNoteIndex++;
+      }
+    }
+
+    // --- HAPTIC FEEDBACK ---
+    if (vibrationEnabled && currentPulseIndex < 3)
+    {
+      if (elapsed >= hapticPulses[currentPulseIndex] && !pulsing)
+      {
+        // Start pulse
+        digitalWrite(VIBRATION_PIN, HIGH);
+        pulsing = true;
+      }
+
+      if (pulsing && elapsed >= (hapticPulses[currentPulseIndex] + hapticDuration))
+      {
+        // End pulse
+        digitalWrite(VIBRATION_PIN, LOW);
+        pulsing = false;
+        currentPulseIndex++;
+      }
+    }
+
+    // --- LED ANIMATION ---
+    // Calculate brightness based on elapsed time (fade from 255 to 0)
+    int brightness = map(elapsed, 0, POWER_OFF_DURATION, 255, 0);
+    brightness = constrain(brightness, 0, 255);
+    FastLED.setBrightness(brightness);
+
+    // Color shift from blue (160) to red (0) as shutting down
+    int hue = map(brightness, 255, 0, 160, 0);
+    for (int i = 0; i < NUM_LEDS; i++)
+    {
+      leds[i] = CHSV(hue, 255, brightness);
+    }
+    FastLED.show();
+
+    // Small delay for smooth animation (targeting ~60fps)
+    delay(16);
+  }
+
+  // Cleanup after animation sequence
+  noTone(BUZZER_PIN);
+  digitalWrite(VIBRATION_PIN, LOW);
+
+  // Restore LED brightness for next power-on
+  FastLED.setBrightness(BRIGHTNESS);
+
+  // ============================================================
+  // CRITICAL: Put TFT display into sleep mode (saves 5-20mA!)
+  // ============================================================
+  tft.writecommand(0x10); // SLPIN - Enter sleep mode (ST7789/ST7735 command)
+  delay(120);             // Wait for display to enter sleep mode
+  Serial.println("TFT display entered sleep mode");
+
+  // Turn off display backlight
   digitalWrite(TFT_LED, LOW);
+  Serial.println("TFT backlight off");
 
-  // Turn off LEDs
+  // ============================================================
+  // WS2812B LEDs - Double clear for reliability
+  // ============================================================
   fill_solid(leds, NUM_LEDS, CRGB::Black);
   FastLED.show();
+  FastLED.show(); // Send twice for reliability
+  delay(10);
+  FastLED.clear(true);
+  delay(10);
+  Serial.println("LEDs fully powered down");
 
-  // Configure wake-up source
-  esp_sleep_enable_ext0_wakeup(static_cast<gpio_num_t>(BUTTON_PIN), LOW);
+  // ============================================================
+  // Isolate SPI pins to prevent current leakage (saves 1-5mA)
+  // ============================================================
 
-  // Make sure the button pin is configured for wake-up
-  // This is crucial for ESP32
-  rtc_gpio_pullup_en(static_cast<gpio_num_t>(BUTTON_PIN));
-  rtc_gpio_pulldown_dis(static_cast<gpio_num_t>(BUTTON_PIN));
+  // CS pin - set HIGH (de-select) before holding
+  pinMode(TFT_CS, OUTPUT);
+  digitalWrite(TFT_CS, HIGH);
+  gpio_hold_en((gpio_num_t)TFT_CS);
 
-  // Wait for button to be released
+  // Other SPI pins - set to INPUT to prevent leakage
+  pinMode(TFT_DC, INPUT);
+  pinMode(TFT_RST, INPUT);
+  pinMode(TFT_MOSI, INPUT);
+  pinMode(TFT_SCLK, INPUT);
+
+  // Shut down SPI communication
+  SPI.end();
+  Serial.println("SPI ended and pins isolated");
+
+  // ============================================================
+  // Release PSRAM allocation (saves ~100μA)
+  // ============================================================
+  if (warpBuffer != nullptr)
+  {
+    free(warpBuffer);
+    warpBuffer = nullptr;
+    Serial.println("PSRAM warp buffer released");
+  }
+
+  // NOTE: Do NOT disable VDDSDIO power domain - it's needed for GPIO functionality
+  // Disabling it can cause wake-up issues and GPIO problems
+  // PSRAM will automatically enter low-power mode during deep sleep
+
+  // ============================================================
+  // ADC power management (potentiometer draws ~330μA via voltage divider)
+  // ============================================================
+  // Note: ESP32-S3 automatically powers down ADC in deep sleep
+  // The potentiometer voltage divider will still draw current if VCC is connected
+  // This is a hardware limitation - consider adding a MOSFET switch in hardware
+  // No explicit ADC power release needed for ESP32-S3 - handled automatically
+  Serial.println("ADC will auto-power-down in deep sleep (ESP32-S3)");
+
+  // ============================================================
+  // Configure GPIO pins for minimum leakage
+  // CRITICAL: GPIO hold ONLY works on OUTPUT pins!
+  // ============================================================
+
+  // TFT backlight - OUTPUT LOW with stabilization delay
+  pinMode(TFT_LED, OUTPUT);
+  digitalWrite(TFT_LED, LOW);
+  delayMicroseconds(100);
+  gpio_hold_en((gpio_num_t)TFT_LED);
+
+  // LED pin - OUTPUT LOW with stabilization delay
+  pinMode(LED_PIN, OUTPUT);
+  digitalWrite(LED_PIN, LOW);
+  delayMicroseconds(100);
+  gpio_hold_en((gpio_num_t)LED_PIN);
+
+  // Vibration motor - OUTPUT LOW with stabilization delay (prevents current spike)
+  pinMode(VIBRATION_PIN, OUTPUT);
+  digitalWrite(VIBRATION_PIN, LOW);
+  delayMicroseconds(100);
+  gpio_hold_en((gpio_num_t)VIBRATION_PIN);
+
+  // Buzzer pin - OUTPUT LOW with stabilization delay
+  pinMode(BUZZER_PIN, OUTPUT);
+  digitalWrite(BUZZER_PIN, LOW);
+  delayMicroseconds(100);
+  gpio_hold_en((gpio_num_t)BUZZER_PIN);
+
+  // Potentiometer pin - INPUT to prevent leakage (no pull-up/pull-down)
+  pinMode(POT_PIN, INPUT);
+  // Note: Hardware voltage divider will still draw ~330μA - hardware fix needed
+
+  // Secondary button - Issue #13 fix: Use RTC GPIO functions only (no pinMode)
+  // RTC GPIO functions handle pin configuration properly for deep sleep
+  rtc_gpio_deinit((gpio_num_t)SECOND_BUTTON_PIN);
+  rtc_gpio_init((gpio_num_t)SECOND_BUTTON_PIN);
+  rtc_gpio_set_direction((gpio_num_t)SECOND_BUTTON_PIN, RTC_GPIO_MODE_INPUT_ONLY);
+  rtc_gpio_pullup_dis((gpio_num_t)SECOND_BUTTON_PIN);
+  rtc_gpio_pulldown_dis((gpio_num_t)SECOND_BUTTON_PIN);
+  rtc_gpio_isolate((gpio_num_t)SECOND_BUTTON_PIN); // Isolate for minimum leakage
+
+  Serial.println("GPIO pins configured and held");
+
+  // Enable GPIO hold during deep sleep to maintain pin states
+  gpio_deep_sleep_hold_en();
+  Serial.println("Deep sleep GPIO hold enabled");
+
+  // ============================================================
+  // Configure wake-up source - CRITICAL: Must be done carefully
+  // ============================================================
+
+  // CRITICAL: Wait for button to be FULLY released before configuring wake-up
+  // This prevents immediate false wake-up triggers
+  Serial.println("Waiting for button release...");
+  unsigned long buttonWaitStart = millis();
   while (digitalRead(BUTTON_PIN) == LOW)
   {
     delay(10);
+    // Safety timeout - if button stuck, proceed anyway after 2 seconds
+    if (millis() - buttonWaitStart > 2000)
+    {
+      Serial.println("WARNING: Button still pressed after 2s, proceeding anyway");
+      break;
+    }
   }
-  delay(100); // Additional debounce delay
+  delay(200); // Extended debounce delay to ensure button is fully released
+
+  // Verify button is HIGH before proceeding
+  if (digitalRead(BUTTON_PIN) == LOW)
+  {
+    Serial.println("ERROR: Button still LOW! Aborting sleep to prevent false wake-up");
+    return; // Don't enter sleep if button is still pressed
+  }
+
+  // Disable all wake-up sources first
+  esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_ALL);
+  Serial.println("All wake sources disabled");
+
+  // Configure button pin as RTC GPIO BEFORE enabling wake-up
+  // This ensures proper pull-up configuration
+  rtc_gpio_init((gpio_num_t)BUTTON_PIN);
+  rtc_gpio_set_direction((gpio_num_t)BUTTON_PIN, RTC_GPIO_MODE_INPUT_ONLY);
+  rtc_gpio_pullup_en((gpio_num_t)BUTTON_PIN);
+  rtc_gpio_pulldown_dis((gpio_num_t)BUTTON_PIN);
+
+  // Small delay to let RTC GPIO stabilize
+  delay(50);
+
+  // Verify button state is HIGH (not pressed) before enabling wake-up
+  if (rtc_gpio_get_level((gpio_num_t)BUTTON_PIN) == 0)
+  {
+    Serial.println("ERROR: RTC GPIO reads LOW! Button may be pressed or floating");
+    Serial.println("Aborting sleep to prevent immediate wake-up");
+    return; // Don't enter sleep if button appears pressed
+  }
+
+  // Now enable wake-up on button press (LOW = pressed)
+  esp_sleep_enable_ext0_wakeup(static_cast<gpio_num_t>(BUTTON_PIN), LOW);
+  Serial.println("Wake-up configured on button pin (LOW = pressed)");
+
+  // Disable Serial/UART for maximum power savings
+  Serial.println("Entering deep sleep mode...");
+  Serial.flush();
+  delay(50); // Allow serial buffer to finish
+  Serial.end();
 
   // Enter deep sleep
   esp_deep_sleep_start();
@@ -3099,10 +3906,10 @@ void processMenuInput()
   if (digitalRead(BUTTON_PIN) == LOW && !buttonPressed)
   {
     unsigned long currentTime = millis();
-    if (currentTime - lastButtonTime > 300)
-    { // Debounce
-      buttonPressed = true;
+    if (currentTime - lastButtonTime > DEBOUNCE_DELAY_MS)
+    { // Debounce - update time BEFORE processing to prevent race condition
       lastButtonTime = currentTime;
+      buttonPressed = true;
 
       // Play UI selection sound (Beep)
       playUISound_Beep();
@@ -3226,10 +4033,10 @@ void updateQuizMode()
   bool btn = (digitalRead(BUTTON_PIN) == LOW);
   bool btnEvent = false;
   unsigned long now = millis();
-  if (btn && !buttonPressed && now - lastButtonTime > 300)
+  if (btn && !buttonPressed && now - lastButtonTime > DEBOUNCE_DELAY_MS)
   {
+    lastButtonTime = now; // Update time BEFORE processing to prevent race condition
     buttonPressed = true;
-    lastButtonTime = now;
     btnEvent = true;
     // Play beep sound for button press in Quiz mode
     playUISound_Beep();
@@ -3349,9 +4156,9 @@ void updateQuizMode()
 
   // Quiz helpline toggle with secondary button
   bool helpBtn = (digitalRead(SECOND_BUTTON_PIN) == LOW);
-  if (helpBtn && millis() - quizHelplineLastButtonTime > QUIZ_HELPLINE_DEBOUNCE)
+  if (helpBtn && millis() - quizHelplineLastButtonTime > QUIZ_HELPLINE_DEBOUNCE_MS)
   {
-    quizHelplineLastButtonTime = millis();
+    quizHelplineLastButtonTime = millis(); // Update time BEFORE processing to prevent race condition
     if (!quizHelplineActive)
     {
       // Switch to helpline music
@@ -3361,7 +4168,7 @@ void updateQuizMode()
       // Pick two wrong options to eliminate
       int wrong[3];
       int wc = 0;
-      for (int i = 0; i < 4; i++)
+      for (int i = 0; i < QUIZ_NUM_OPTIONS; i++)
       {
         if (i != quizState.correctIndex)
           wrong[wc++] = i;
@@ -3374,9 +4181,14 @@ void updateQuizMode()
         wrong[i] = wrong[j];
         wrong[j] = tmp;
       }
-      quizHelplineIndices[0] = wrong[0];
-      quizHelplineIndices[1] = wrong[1];
-      quizHelplineActive = true;
+      // Bounds check before assigning indices
+      if (wc >= 2 && wrong[0] >= 0 && wrong[0] < QUIZ_NUM_OPTIONS &&
+          wrong[1] >= 0 && wrong[1] < QUIZ_NUM_OPTIONS)
+      {
+        quizHelplineIndices[0] = wrong[0];
+        quizHelplineIndices[1] = wrong[1];
+        quizHelplineActive = true;
+      }
     }
     else
     {
@@ -3826,5 +4638,24 @@ void toggleSoundSettingsPopup()
   {
     // Redraw the menu when closing popup
     drawMenu();
+  }
+}
+
+// Animation control functions
+void toggleAnimations()
+{
+  animationEnabled = !animationEnabled;
+  if (ANIMATION_DEBUG)
+  {
+    Serial.printf("[Animation] Animations %s\n", animationEnabled ? "enabled" : "disabled");
+  }
+}
+
+void setAnimationEnabled(bool enabled)
+{
+  animationEnabled = enabled;
+  if (ANIMATION_DEBUG)
+  {
+    Serial.printf("[Animation] Animations %s\n", animationEnabled ? "enabled" : "disabled");
   }
 }

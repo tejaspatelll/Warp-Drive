@@ -13,7 +13,7 @@ void toggleSound() {
 }
 
 // Helper function to apply volume factor to frequency
-inline int adjustVolume(int frequency) {
+int adjustVolume(int frequency) {
   return round(frequency * VOLUME_FACTOR);
 }
 
@@ -506,4 +506,19 @@ void stopAllSounds() {
   helplineMusicPlaying = false;
   popupMusicPlaying = false;
   stopBuzzerSound();
+}
+
+void playPowerOffSound() {
+  if (!soundEnabled) return;
+  
+  // Power down sound: descending sci-fi shutdown sequence
+  // Simulates systems powering down one by one
+  int notes[] = {NOTE_G5, NOTE_E5, NOTE_C5, NOTE_G4, NOTE_E4, NOTE_C4, NOTE_G3, NOTE_C3};
+  int durations[] = {100, 100, 120, 120, 140, 140, 160, 250};
+  
+  for (int i = 0; i < 8; i++) {
+    tone(BUZZER_PIN, adjustVolume(notes[i]), durations[i]);
+    delay(durations[i]);
+  }
+  noTone(BUZZER_PIN);
 } 

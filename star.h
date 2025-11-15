@@ -25,7 +25,7 @@ struct Star
 /**
  * Draws a single star with specified brightness
  */
-void drawStar(const Star &star)
+static inline void drawStar(const Star &star)
 {
   uint16_t color = tft.color565(star.brightness, star.brightness, star.brightness);
   tft.drawPixel(star.x, star.y, color);
@@ -34,7 +34,7 @@ void drawStar(const Star &star)
 /**
  * Draws a star with flares and light variations
  */
-void drawStar()
+static inline void drawStar()
 {
   int centerX = objectX;
   int centerY = objectY;
@@ -85,7 +85,7 @@ void drawStar()
 /**
  * Erases a star
  */
-void eraseStar()
+static inline void eraseStar()
 {
   int centerX = objectX;
   int centerY = objectY;
@@ -99,7 +99,7 @@ void eraseStar()
 /**
  * Draws a star with a glow effect and subtle color variations
  */
-void drawStarWithGlow(int x, int y, int radius, uint16_t baseColor)
+static inline void drawStarWithGlow(int x, int y, int radius, uint16_t baseColor)
 {
   // Draw glow
   for (int r = radius + 2; r > radius; r--)

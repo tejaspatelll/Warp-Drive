@@ -211,8 +211,15 @@ void updateQuiz() {
     // Draw selection box and text
     // Draw retro-style box
     tft.fillRect(boxX + 4, boxY + 4, boxW - 8, boxH - 8, tft.color565(0, 40, 80));
-    // Highlight eliminated options in red if helpline is active
-    if (quizHelplineActive && (quizState.selectedIndex == quizHelplineIndices[0] || quizState.selectedIndex == quizHelplineIndices[1])) {
+    // Highlight eliminated options in red if helpline is active (Bug #2 fix: bounds check)
+    bool isHelplineIndex = false;
+    if (quizHelplineActive && quizState.selectedIndex >= 0 && quizState.selectedIndex < 4) {
+        if ((quizHelplineIndices[0] >= 0 && quizHelplineIndices[0] < 4 && quizState.selectedIndex == quizHelplineIndices[0]) ||
+            (quizHelplineIndices[1] >= 0 && quizHelplineIndices[1] < 4 && quizState.selectedIndex == quizHelplineIndices[1])) {
+            isHelplineIndex = true;
+        }
+    }
+    if (isHelplineIndex) {
         uint16_t redCol = tft.color565(255, 0, 0);
         tft.drawRect(boxX + 2, boxY + 2, boxW - 4, boxH - 4, redCol);
         tft.drawRect(boxX, boxY, boxW, boxH, redCol);
@@ -243,8 +250,8 @@ void updateQuiz() {
     // Draw option label
     String optionLabel = STORY_STOPS_DATA[quizState.optionIndices[quizState.selectedIndex]].name;
     // Glow effect
-    // Option text, red if helpline marks it as eliminated
-    if (quizHelplineActive && (quizState.selectedIndex == quizHelplineIndices[0] || quizState.selectedIndex == quizHelplineIndices[1])) {
+    // Option text, red if helpline marks it as eliminated (reuse isHelplineIndex from above)
+    if (isHelplineIndex) {
         uint16_t redCol = tft.color565(255, 0, 0);
         tft.setTextDatum(MC_DATUM);
         tft.setTextSize(2);
@@ -309,8 +316,10 @@ void updateQuiz() {
 
 
 void processQuizInput(int potValue, bool buttonPressed) {
-    // Map potValue (0-4095) to 0-3
-    int idx = map(potValue, 0, 4095, 0, 3);
+    // Map potValue (0-4095) to 4 equal zones (0-3)
+    // Zone 0: 0-1023, Zone 1: 1024-2047, Zone 2: 2048-3071, Zone 3: 3072-4095
+    int idx = (potValue * 4) / 4096;
+    if (idx > 3) idx = 3; // Clamp to ensure we don't exceed 3
     if (idx != quizState.selectedIndex) {
         quizState.selectedIndex = idx;
         quizState.showHint = false;

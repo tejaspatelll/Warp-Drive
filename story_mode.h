@@ -7,6 +7,7 @@
 #include "sprite_manager.h"
 #include "star.h"
 #include "led_animations.h" // Add this include for LED control
+#include "celestial_animations.h" // For easeInOutCubic function
 
 // Make sure POT_PIN is available from main file (warpdrive_esp32_tft.ino)
 #ifndef POT_PIN
@@ -26,6 +27,7 @@ extern const int SCREEN_HEIGHT;
 // These are dependencies that the StoryMode class will need
 extern TFT_eSPI tft;
 extern uint16_t BG_COLOR;
+extern float warpFactor; // Global warp factor used by updateWarpStars()
 extern void drawStar(); // Modified to match void (*)() signature
 extern void drawPlanet();
 extern void drawNebula();
@@ -925,37 +927,42 @@ bool StoryMode::processInput(int potValue, bool buttonPinState_LOW) {
     const int MAX_POT_VALUE = 4095;
     bool shouldWarp = (potValue > WARP_THRESHOLD);
     
-    if (shouldWarp) {
-        float potPercent = constrain(potValue, WARP_THRESHOLD, MAX_POT_VALUE);
-        potPercent = (potPercent - WARP_THRESHOLD) / (float)(MAX_POT_VALUE - WARP_THRESHOLD);
-        // Update the internal warpFactor
-        // extern float warpFactor; // Remove this extern
-        this->currentWarpFactor = 0.2f + (potPercent * 0.8f);
-    } else {
-        this->currentWarpFactor = 0.0f; // Set to 0 if not warping
-    }
+    // Calculate warpFactor the same way as discovery mode (smooth from 0.0 to 1.0)
+    // Scale from 0-4095 to 0-1.0 for 12-bit ADC, then apply easing
+    float rawWarpFactor = static_cast<float>(potValue) / static_cast<float>(MAX_POT_VALUE);
+    float calculatedWarpFactor = easeInOutCubic(rawWarpFactor);
+    
+    // Update both the global warpFactor (used by updateWarpStars) and currentWarpFactor (used by getWarpFactor)
+    warpFactor = calculatedWarpFactor;
+    this->currentWarpFactor = calculatedWarpFactor;
 
     if (shouldWarp && !previousWarpState) {
         warpActive = true;
         warpEngageTime = millis();
         tft.fillScreen(BG_COLOR); // Clear for warp effect
 
-        // Initialize stars for warp (this logic might need to be inside updateWarpStars or a dedicated initWarp function)
-        const float centerX = SCREEN_WIDTH / 2.0f;
-        const float centerY = SCREEN_HEIGHT / 2.0f;
-        for (int i = 0; i < STAR_COUNT; i++) { // STAR_COUNT is a #define
-            float angle = random(360) * PI / 180.0f;
-            float maxRadius = sqrtf(powf(SCREEN_WIDTH/2.0f, 2) + powf(SCREEN_HEIGHT/2.0f, 2));
-            float distance = random(10, (int)maxRadius);
-            stars[i].realX = centerX + cos(angle) * distance;
-            stars[i].realY = centerY + sin(angle) * distance;
-            stars[i].x = round(stars[i].realX);
-            stars[i].y = round(stars[i].realY);
-            stars[i].brightness = random(150, 256);
-            stars[i].streakLength = 0;
+        // Stars will continue from their current positions (same as discovery mode)
+        // updateWarpStars() will handle their radial movement.
+        
+        // Clear any streak history for all stars, as they are entering warp
+        for (int i = 0; i < STAR_COUNT; i++) {
+            stars[i].streakLength = 0; // Reset streak length
+            for (int j = 0; j <= MAX_STREAK_LENGTH; j++) {
+                prevX[i][j] = SCREEN_WIDTH;  // Mark as invalid/off-screen
+                prevY[i][j] = SCREEN_HEIGHT; // Mark as invalid/off-screen
+            }
         }
         Serial.println("StoryMode: Entered Warp.");
     } else if (!shouldWarp && previousWarpState) {
+        // Clear warp streak buffers to prevent ghost artifacts (same as discovery mode)
+        for (int i = 0; i < STAR_COUNT; i++) {
+            stars[i].streakLength = 0; // Reset streak length
+            for (int j = 0; j <= MAX_STREAK_LENGTH; j++) {
+                prevX[i][j] = SCREEN_WIDTH;  // Mark as invalid/off-screen
+                prevY[i][j] = SCREEN_HEIGHT; // Mark as invalid/off-screen
+            }
+        }
+        
         if (millis() - warpEngageTime > minWarpTravelDuration) {
             warpActive = false;
             advanceToNextStop(); // This already clears the screen
