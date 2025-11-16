@@ -107,6 +107,10 @@ static void drawXBitmapBitSwap(int16_t x, int16_t y, const unsigned char *bitmap
 bool quizActive = false;
 #include <esp_sleep.h>
 #include <driver/rtc_io.h>
+#include <WiFi.h>
+#include <esp_wifi.h>
+#include <esp_bt.h>
+#include <esp_bt_main.h>
 
 // Include LED animations header
 #include "led_animations.h"
@@ -127,8 +131,8 @@ unsigned long buttonPressStartTime = 0;
 static bool secondButtonPressed = false;
 static unsigned long secondLastButtonTime = 0;
 const unsigned long SECOND_DEBOUNCE_DELAY = 300; // ms debounce for secondary button
-// Persistent fact panel state
-static bool factPopupActive = false;
+                                                 // Persistent fact panel state
+bool factPopupActive = false;
 static String factText = "";
 
 // Quiz helpline state for eliminating wrong options in Quiz mode
@@ -822,33 +826,114 @@ void cleanupWarpBuffer()
   }
 }
 
+// Initialize and verify PSRAM functionality
+bool initializeAndVerifyPSRAM()
+{
+  Serial.println("--- PSRAM INITIALIZATION AND VERIFICATION ---");
+#if defined(ESP32) && defined(BOARD_HAS_PSRAM)
+  if (psramInit())
+  {
+    size_t totalPsram = ESP.getPsramSize();
+    size_t freePsram = ESP.getFreePsram();
+    Serial.printf("PSRAM initialized successfully. Total: %u bytes, Free: %u bytes\n", totalPsram, freePsram);
+
+    // Verify PSRAM by attempting to allocate a test buffer
+    size_t testSize = 1024; // 1KB test allocation
+    void *testPtr = ps_malloc(testSize);
+    if (testPtr != nullptr)
+    {
+      // Test write/read
+      uint8_t *testBuf = (uint8_t *)testPtr;
+      for (size_t i = 0; i < testSize; i++)
+      {
+        testBuf[i] = (uint8_t)(i & 0xFF);
+      }
+      // Verify read
+      bool testPassed = true;
+      for (size_t i = 0; i < testSize; i++)
+      {
+        if (testBuf[i] != (uint8_t)(i & 0xFF))
+        {
+          testPassed = false;
+          break;
+        }
+      }
+      free(testPtr);
+
+      if (testPassed)
+      {
+        Serial.println("PSRAM verification test PASSED - PSRAM is working correctly");
+        return true;
+      }
+      else
+      {
+        Serial.println("PSRAM verification test FAILED - PSRAM may be corrupted");
+        return false;
+      }
+    }
+    else
+    {
+      Serial.println("PSRAM allocation test FAILED - cannot allocate test buffer");
+      return false;
+    }
+  }
+  else
+  {
+    Serial.println("PSRAM initialization FAILED");
+    return false;
+  }
+#elif defined(ESP32)
+  size_t freePsram = ESP.getFreePsram();
+  Serial.printf("Board might have PSRAM, but psramInit() not explicitly called or BOARD_HAS_PSRAM not defined. Free PSRAM: %u\n", freePsram);
+  // Try to verify anyway
+  void *testPtr = ps_malloc(1024);
+  if (testPtr != nullptr)
+  {
+    free(testPtr);
+    Serial.println("PSRAM appears to be available (allocation succeeded)");
+    return true;
+  }
+  else
+  {
+    Serial.println("PSRAM appears to be unavailable (allocation failed)");
+    return false;
+  }
+#else
+  Serial.println("Not an ESP32 or PSRAM check not configured for this board.");
+  return false;
+#endif
+}
+
 void setup()
 {
   pinMode(VIBRATION_PIN, OUTPUT);
   digitalWrite(VIBRATION_PIN, LOW); // Ensure vibration is off initially
   Serial.begin(9600);               // Move Serial.begin to top for debugging
 
+  // ⬇️ --- ADDED FROM YOUR "BROKEN" CODE (Power Saving) --- ⬇️
+  WiFi.mode(WIFI_OFF);
+  btStop();
+  esp_wifi_stop();
+  esp_bt_controller_disable();
+  Serial.println("WiFi and Bluetooth disabled for power savings");
+  // ⬆️ --- END OF ADDITION --- ⬆️
+
   // Initialize the buzzer
   initBuzzer();
 
-  Serial.println("--- PSRAM CHECK START ---");
-#if defined(ESP32) && defined(BOARD_HAS_PSRAM)
-  if (psramInit())
-  {
-    Serial.printf("PSRAM initialized successfully. Total PSRAM: %u, Free PSRAM: %u\n", ESP.getPsramSize(), ESP.getFreePsram());
-  }
-  else
-  {
-    Serial.println("PSRAM initialization FAILED.");
-  }
-#elif defined(ESP32)
-  Serial.printf("Board might have PSRAM, but psramInit() not explicitly called or BOARD_HAS_PSRAM not defined. Free PSRAM: %u\n", ESP.getFreePsram());
-#else
-  Serial.println("Not an ESP32 or PSRAM check not configured for this board.");
-#endif
-  Serial.println("--- PSRAM CHECK END ---");
+  // ⬇️ --- ADDED FROM YOUR "BROKEN" CODE (Better PSRAM Check) --- ⬇️
+  // Initialize and verify PSRAM
+  bool psramReady = initializeAndVerifyPSRAM();
 
-  // Configure pins
+  if (!psramReady)
+  {
+    Serial.println("WARNING: PSRAM is not available or not working correctly!");
+    Serial.println("Graphics performance may be degraded. Continuing anyway...");
+    delay(1000); // Give user time to see the warning
+  }
+  // ⬆️ --- END OF ADDITION --- ⬆️
+
+  // Configure pins (Using your OG pins 1 and 3)
   pinMode(TFT_LED, OUTPUT);
   pinMode(BUTTON_PIN, INPUT_PULLUP);
   pinMode(SECOND_BUTTON_PIN, INPUT_PULLUP);
@@ -858,30 +943,26 @@ void setup()
 
   if (wakeup_reason == ESP_SLEEP_WAKEUP_EXT0)
   {
-    // We woke up from button press
+    // We woke up from button press (This is the simple, working "OG" logic)
     Serial.println("Waking from deep sleep");
     isPoweredOn = true;
 
     // Initialize display
     digitalWrite(TFT_LED, HIGH);
-    tft.init();
-    tft.setRotation(0);
-    initColors();
-    tft.fillScreen(COLOR_BG);
 
-    // Show wake-up message
+    // Continue with normal initialization
+    initializeSystem(); // This calls tft.init() and draws the menu
+
+    // Show wake-up message briefly (will be visible before menu redraws if needed)
     tft.setTextColor(COLOR_GREEN);
     tft.setTextSize(1);
     tft.setCursor((SCREEN_WIDTH - tft.textWidth("Warp Drive Loading...")) / 2, SCREEN_HEIGHT / 2);
     tft.print("Warp Drive Loading...");
     delay(100);
-
-    // Continue with normal initialization
-    initializeSystem();
   }
   else
   {
-    // Normal power-on
+    // Normal power-on (This is the simple, working "OG" logic)
     Serial.println("Normal power-on");
     isPoweredOn = true;
     digitalWrite(TFT_LED, HIGH);
@@ -889,12 +970,13 @@ void setup()
   }
 }
 
-// Add this new function to handle system initialization
+// This is the simple, working "OG" initializeSystem()
+// It does NOT contain any tft.writecommand(0x11) or hardware resets
 void initializeSystem()
 {
   initializeScaling(); // Initialize scaling factors first
-  // tft.setAttribute(PSRAM_ENABLE, true); // <<<< Temporarily commented out for testing PSRAM issue
-  Serial.printf("Inside initializeSystem, (global tft PSRAM_ENABLE is OFF for this test) - Free PSRAM: %u, Free Heap: %u\n", ESP.getFreePsram(), ESP.getFreeHeap());
+  // tft.setAttribute(PSRAM_ENABLE, true); // Still commented out per your file
+  Serial.printf("Inside initializeSystem - Free PSRAM: %u, Free Heap: %u\n", ESP.getFreePsram(), ESP.getFreeHeap());
 
   // Reset menu buffer data when system initializes
   g_boxY = SCREEN_HEIGHT * 0.25;
@@ -907,6 +989,8 @@ void initializeSystem()
   // Rest of initialization
   pinMode(VIBRATION_PIN, OUTPUT);
   digitalWrite(VIBRATION_PIN, LOW); // Ensure vibration is off at system init
+
+  // This is the simple, working "OG" init
   tft.init();
   tft.setRotation(0);
   initColors();
@@ -975,6 +1059,11 @@ void loop()
     {
       hapticFeedback(warpFactor);
     }
+    else if (currentState == State::STORY && storyModeManager.isActive() && storyModeManager.isWarping())
+    {
+      // Story mode warp - use warp factor from story mode
+      hapticFeedback(storyModeManager.getWarpFactor());
+    }
     else
     {
       hapticFeedback(0.0f);
@@ -1031,18 +1120,18 @@ void loop()
       stopMenuBackgroundMusic();
       stopQuizQuestionMusic();
       {
-        bool storyShouldExit;
-        if (!factPopupActive)
+        // Always call update() to keep visuals running
+        // update() internally calls processInput() and updateCurrentStepVisuals()
+        // updateCurrentStepVisuals() already checks factPopupActive and won't draw
+        // the narration box when popup is active, so this is safe
+        bool storyShouldExit = storyModeManager.update(potValue, digitalRead(BUTTON_PIN) == LOW);
+
+        // If popup is active and not warping, ensure stars keep twinkling
+        if (factPopupActive && !storyModeManager.isWarping())
         {
-          // Normal story update (draws narrative and objects)
-          storyShouldExit = storyModeManager.update(potValue, digitalRead(BUTTON_PIN) == LOW);
-        }
-        else
-        {
-          // Fact popup active: only process input and keep stars animating
-          storyShouldExit = storyModeManager.processInput(potValue, digitalRead(BUTTON_PIN) == LOW);
           updateStars();
         }
+
         if (storyShouldExit)
         {
           // storyModeManager.exit() was already called internally by the update/processInput methods
@@ -1064,7 +1153,15 @@ void loop()
             factPopupActive = false;
             hideFactPopup();
           }
-          setLedModeStory(); // Set LED for story mode
+          // Set LED mode - use warp mode if warping, otherwise story mode
+          if (storyModeManager.isWarping())
+          {
+            setLedModeWarp(); // Use warp LED mode during story warp
+          }
+          else
+          {
+            setLedModeStory(); // Normal story mode LED
+          }
 
           // Secondary button press to show story fact popup
           {
@@ -1762,9 +1859,27 @@ void processInput()
  */
 void updateStars()
 {
+  // Get viewport bounds ONLY if in story mode with console UI AND not warping
+  int minX = 0, maxX = SCREEN_WIDTH;
+  int minY = 0, maxY = SCREEN_HEIGHT;
+  bool constrainToViewport = false;
+
+  if (currentState == State::STORY && storyModeManager.isActive() && !storyModeManager.isWarping())
+  {
+    minX = storyModeManager.getViewportX();
+    minY = storyModeManager.getViewportY();
+    maxX = minX + storyModeManager.getViewportSize();
+    maxY = minY + storyModeManager.getViewportSize();
+    constrainToViewport = true;
+  }
+
   for (int i = 0; i < STAR_COUNT; i++)
   {
-    if (stars[i].x >= 0 && stars[i].x < SCREEN_WIDTH &&
+    // Check if star is within visible bounds
+    bool inBounds = stars[i].x >= minX && stars[i].x < maxX &&
+                    stars[i].y >= minY && stars[i].y < maxY;
+
+    if (inBounds && stars[i].x >= 0 && stars[i].x < SCREEN_WIDTH &&
         stars[i].y >= 0 && stars[i].y < SCREEN_HEIGHT)
     {
       tft.drawPixel(stars[i].x, stars[i].y, BG_COLOR);
@@ -1787,18 +1902,40 @@ void updateStars()
       }
     }
 
-    if (stars[i].x < 0 || stars[i].x >= SCREEN_WIDTH ||
-        stars[i].y < 0 || stars[i].y >= SCREEN_HEIGHT)
+    // Reposition star if out of bounds
+    if (constrainToViewport)
     {
-      stars[i].x = random(SCREEN_WIDTH);
-      stars[i].y = random(SCREEN_HEIGHT);
-      // Add missing realX/realY updates for consistency
-      stars[i].realX = static_cast<float>(stars[i].x);
-      stars[i].realY = static_cast<float>(stars[i].y);
-      stars[i].brightness = random(150, 256);
-      stars[i].increasing = random(0, 2);
+      if (stars[i].x < minX || stars[i].x >= maxX ||
+          stars[i].y < minY || stars[i].y >= maxY)
+      {
+        stars[i].x = random(minX, maxX);
+        stars[i].y = random(minY, maxY);
+        stars[i].realX = static_cast<float>(stars[i].x);
+        stars[i].realY = static_cast<float>(stars[i].y);
+        stars[i].brightness = random(150, 256);
+        stars[i].increasing = random(0, 2);
+      }
     }
-    drawStar(stars[i]);
+    else
+    {
+      if (stars[i].x < 0 || stars[i].x >= SCREEN_WIDTH ||
+          stars[i].y < 0 || stars[i].y >= SCREEN_HEIGHT)
+      {
+        stars[i].x = random(SCREEN_WIDTH);
+        stars[i].y = random(SCREEN_HEIGHT);
+        // Add missing realX/realY updates for consistency
+        stars[i].realX = static_cast<float>(stars[i].x);
+        stars[i].realY = static_cast<float>(stars[i].y);
+        stars[i].brightness = random(150, 256);
+        stars[i].increasing = random(0, 2);
+      }
+    }
+
+    // Only draw star if in bounds
+    if (inBounds || !constrainToViewport)
+    {
+      drawStar(stars[i]);
+    }
   }
 }
 
@@ -1821,20 +1958,57 @@ void updateWarpStars()
   }
   lastWarpFrame = currentTime;
 
-  const float centerX = SCREEN_WIDTH / 2.0f;
-  const float centerY = SCREEN_HEIGHT / 2.0f;
+  // Get viewport bounds if in story mode - warp contained to viewport only!
+  float centerX, centerY;
+  int minX, minY, maxX, maxY;
+
+  if (currentState == State::STORY && storyModeManager.isActive())
+  {
+    minX = storyModeManager.getViewportX();
+    minY = storyModeManager.getViewportY();
+    int vpSize = storyModeManager.getViewportSize();
+    maxX = minX + vpSize;
+    maxY = minY + vpSize;
+    centerX = minX + vpSize / 2.0f;
+    centerY = minY + vpSize / 2.0f;
+  }
+  else
+  {
+    minX = 0;
+    minY = 0;
+    maxX = SCREEN_WIDTH;
+    maxY = SCREEN_HEIGHT;
+    centerX = SCREEN_WIDTH / 2.0f;
+    centerY = SCREEN_HEIGHT / 2.0f;
+  }
 
   // Use double buffering if available, otherwise fall back to direct drawing
   if (bufferInitialized && warpBuffer != nullptr)
   {
-    // Debug: Print which path we're taking
-    // Serial.println("Using double buffering");
-    // Clear the buffer to background color (pure black)
-    // Use explicit black color value instead of TFT_BLACK
-    uint16_t blackColor = 0x0000; // Pure black in RGB565
-    for (int i = 0; i < SCREEN_WIDTH * SCREEN_HEIGHT; i++)
+    // In story mode, preserve the UI by only clearing viewport area in buffer
+    if (currentState == State::STORY && storyModeManager.isActive())
     {
-      warpBuffer[i] = blackColor;
+      // Only clear the viewport region of the buffer, leave rest untouched
+      int vpX = storyModeManager.getViewportX();
+      int vpY = storyModeManager.getViewportY();
+      int vpSize = storyModeManager.getViewportSize();
+
+      for (int y = vpY; y < vpY + vpSize; y++)
+      {
+        for (int x = vpX; x < vpX + vpSize; x++)
+        {
+          warpBuffer[y * SCREEN_WIDTH + x] = BG_COLOR;
+        }
+      }
+    }
+    else
+    {
+      // Discovery mode - clear entire buffer
+      uint16_t bgColor = BG_COLOR;
+      for (int i = 0; i < SCREEN_WIDTH * SCREEN_HEIGHT; i++)
+      {
+        warpBuffer[i] = bgColor;
+      }
     }
 
     // Debug test pattern removed
@@ -1867,9 +2041,9 @@ void updateWarpStars()
         int streakX = roundf(stars[i].realX + dirX * j);
         int streakY = roundf(stars[i].realY + dirY * j);
 
-        // Only draw pixels that are on screen
-        if (streakX >= 0 && streakX < SCREEN_WIDTH &&
-            streakY >= 0 && streakY < SCREEN_HEIGHT)
+        // Only draw pixels that are within viewport bounds
+        if (streakX >= minX && streakX < maxX &&
+            streakY >= minY && streakY < maxY)
         {
           // Fade: head bright -> tail dim. Use gamma-ish curve for smoother falloff
           float t = (streakLength > 0) ? (float)j / (float)streakLength : 0.0f; // 0 at head
@@ -1891,30 +2065,82 @@ void updateWarpStars()
       int newX = roundf(stars[i].realX);
       int newY = roundf(stars[i].realY);
 
-      // Reset stars that move off screen
-      if (newX < 0 || newX >= SCREEN_WIDTH ||
-          newY < 0 || newY >= SCREEN_HEIGHT)
+      // Reset stars that move off viewport bounds
+      if (newX < minX || newX >= maxX ||
+          newY < minY || newY >= maxY)
       {
-        // Reset the star's position
+        // Reset the star's position within the viewport - ensure it's visible
         float angle = random(0, 360) * PI / 180.0f;
-        float maxRadius = sqrt((SCREEN_WIDTH / 2.0f) * (SCREEN_WIDTH / 2.0f) + (SCREEN_HEIGHT / 2.0f) * (SCREEN_HEIGHT / 2.0f));
-        float distance = random(10, maxRadius);
+        float maxRadius = sqrt(powf((maxX - minX) / 2.0f, 2) + powf((maxY - minY) / 2.0f, 2));
+        float distance = random(5, (int)(maxRadius * 0.8f)); // Keep stars closer to center for better visibility
         stars[i].realX = centerX + cos(angle) * distance;
         stars[i].realY = centerY + sin(angle) * distance;
         stars[i].x = roundf(stars[i].realX);
         stars[i].y = roundf(stars[i].realY);
-        stars[i].brightness = random(150, 256);
+        stars[i].brightness = random(180, 256); // Brighter stars for better visibility
+        stars[i].streakLength = 0;              // Reset streak
       }
       else
       {
-        // Star is still on screen
+        // Star is still within viewport
         stars[i].x = newX;
         stars[i].y = newY;
       }
     }
 
-    // Push the entire buffer to the display at once
-    tft.pushImage(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, warpBuffer);
+    // Push the buffer to display
+    // In story mode, only push the viewport area to preserve UI
+    if (currentState == State::STORY && storyModeManager.isActive())
+    {
+      int vpSize = storyModeManager.getViewportSize();
+      int vpX = storyModeManager.getViewportX();
+      int vpY = storyModeManager.getViewportY();
+
+      // Extract viewport section and push using pushImage for reliability
+      // Copy viewport area from main buffer to temporary buffer row by row
+      static uint16_t *viewportBuffer = nullptr;
+      static int lastVpSize = 0;
+
+      // Allocate temporary buffer if needed (only once, reuse if size matches)
+      if (viewportBuffer == nullptr || lastVpSize != vpSize)
+      {
+        if (viewportBuffer != nullptr)
+        {
+          free(viewportBuffer);
+        }
+        viewportBuffer = (uint16_t *)malloc(vpSize * vpSize * sizeof(uint16_t));
+        lastVpSize = vpSize;
+      }
+
+      if (viewportBuffer != nullptr)
+      {
+        // Copy viewport area from main buffer to temporary buffer
+        for (int y = 0; y < vpSize; y++)
+        {
+          uint16_t *srcRow = &warpBuffer[(vpY + y) * SCREEN_WIDTH + vpX];
+          uint16_t *dstRow = &viewportBuffer[y * vpSize];
+          memcpy(dstRow, srcRow, vpSize * sizeof(uint16_t));
+        }
+
+        // Push the viewport buffer to display
+        tft.pushImage(vpX, vpY, vpSize, vpSize, viewportBuffer);
+      }
+      else
+      {
+        // Fallback: push row by row if allocation failed
+        for (int y = 0; y < vpSize; y++)
+        {
+          tft.setAddrWindow(vpX, vpY + y, vpSize, 1);
+          uint16_t *rowPtr = &warpBuffer[(vpY + y) * SCREEN_WIDTH + vpX];
+          tft.pushPixels(rowPtr, vpSize);
+        }
+      }
+    }
+    else
+    {
+      // Discovery mode - use full screen
+      tft.pushImage(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, warpBuffer);
+    }
 
     // Debug: Print some buffer values to see what's in there
     // Serial.printf("Buffer[0]: 0x%04X, Buffer[1]: 0x%04X\n", warpBuffer[0], warpBuffer[1]);
@@ -1924,18 +2150,19 @@ void updateWarpStars()
     // Debug: Print which path we're taking
     // Serial.println("Using direct drawing fallback");
     // Fallback to optimized direct drawing (original method but improved)
-    // Clear previous streaks more efficiently
+    // Clear previous streaks more efficiently - constrained to viewport
     for (int i = 0; i < STAR_COUNT; i++)
     {
       for (int j = 0; j <= MAX_STREAK_LENGTH; j++)
       {
         uint16_t px = prevX[i][j];
         uint16_t py = prevY[i][j];
-        if (px < SCREEN_WIDTH && py < SCREEN_HEIGHT)
+        // Check if within viewport bounds
+        if (px >= minX && px < maxX && py >= minY && py < maxY)
         {
           tft.drawPixel(px, py, BG_COLOR);
-          prevX[i][j] = SCREEN_WIDTH;
-          prevY[i][j] = SCREEN_HEIGHT;
+          prevX[i][j] = maxX + 1; // Out of bounds marker
+          prevY[i][j] = maxY + 1;
         }
       }
     }
@@ -1967,8 +2194,9 @@ void updateWarpStars()
         int streakX = roundf(stars[i].realX + dirX * j);
         int streakY = roundf(stars[i].realY + dirY * j);
 
-        if (streakX >= 0 && streakX < SCREEN_WIDTH &&
-            streakY >= 0 && streakY < SCREEN_HEIGHT)
+        // Check if within viewport bounds
+        if (streakX >= minX && streakX < maxX &&
+            streakY >= minY && streakY < maxY)
         {
           if (j <= MAX_STREAK_LENGTH)
           {
@@ -1985,16 +2213,16 @@ void updateWarpStars()
         }
         else if (j <= MAX_STREAK_LENGTH)
         {
-          prevX[i][j] = SCREEN_WIDTH;
-          prevY[i][j] = SCREEN_HEIGHT;
+          prevX[i][j] = maxX + 1; // Out of bounds marker
+          prevY[i][j] = maxY + 1;
         }
       }
 
       // Clear any remaining streak storage
       for (int j = streakLength + 1; j <= MAX_STREAK_LENGTH; ++j)
       {
-        prevX[i][j] = SCREEN_WIDTH;
-        prevY[i][j] = SCREEN_HEIGHT;
+        prevX[i][j] = maxX + 1;
+        prevY[i][j] = maxY + 1;
       }
 
       // Update star position with scaled speed
@@ -2008,25 +2236,25 @@ void updateWarpStars()
       int newX = roundf(stars[i].realX);
       int newY = roundf(stars[i].realY);
 
-      // Reset stars that move off screen
-      if (newX < 0 || newX >= SCREEN_WIDTH ||
-          newY < 0 || newY >= SCREEN_HEIGHT)
+      // Reset stars that move off viewport bounds
+      if (newX < minX || newX >= maxX ||
+          newY < minY || newY >= maxY)
       {
         // Erase the streak before resetting
         for (int j = 0; j <= MAX_STREAK_LENGTH; j++)
         {
           uint16_t px = prevX[i][j];
           uint16_t py = prevY[i][j];
-          if (px < SCREEN_WIDTH && py < SCREEN_HEIGHT)
+          if (px >= minX && px < maxX && py >= minY && py < maxY)
           {
             tft.drawPixel(px, py, BG_COLOR);
           }
         }
 
-        // Reset the star's position
+        // Reset the star's position within viewport
         float angle = random(0, 360) * PI / 180.0f;
-        float maxRadius = sqrt((SCREEN_WIDTH / 2.0f) * (SCREEN_WIDTH / 2.0f) + (SCREEN_HEIGHT / 2.0f) * (SCREEN_HEIGHT / 2.0f));
-        float distance = random(10, maxRadius);
+        float maxRadius = sqrt(powf((maxX - minX) / 2.0f, 2) + powf((maxY - minY) / 2.0f, 2));
+        float distance = random(10, (int)maxRadius);
         stars[i].realX = centerX + cos(angle) * distance;
         stars[i].realY = centerY + sin(angle) * distance;
         stars[i].x = roundf(stars[i].realX);
@@ -2036,18 +2264,20 @@ void updateWarpStars()
         // Clear the previous position buffer
         for (int j = 0; j <= MAX_STREAK_LENGTH; j++)
         {
-          prevX[i][j] = SCREEN_WIDTH;
-          prevY[i][j] = SCREEN_HEIGHT;
+          prevX[i][j] = maxX + 1;
+          prevY[i][j] = maxY + 1;
         }
       }
       else
       {
-        // Star is still on screen
+        // Star is still within viewport
         stars[i].x = newX;
         stars[i].y = newY;
       }
     }
   }
+
+  // Warp animation complete - stars constrained to viewport in story mode!
 }
 
 /**
@@ -2684,7 +2914,96 @@ void powerOff()
   tft.setCursor(shutX, shutY);
   tft.print(shutting);
 
-  delay(3000);
+  // ⬇️ --- MERGED: This is the advanced animation loop from your "broken" code --- ⬇️
+  const unsigned long POWER_OFF_DURATION = 1500; // Total time in ms
+  unsigned long startTime = millis();
+  unsigned long currentTime = 0;
+  unsigned long elapsed = 0;
+
+  // Sound timing - 8 descending notes spread across 1500ms
+  int soundNotes[] = {NOTE_G5, NOTE_E5, NOTE_C5, NOTE_G4, NOTE_E4, NOTE_C4, NOTE_G3, NOTE_C3};
+  int soundTimings[] = {0, 190, 380, 570, 760, 950, 1140, 1330};   // When each note starts (ms)
+  int soundDurations[] = {180, 180, 180, 180, 180, 180, 180, 160}; // How long each note plays
+  int currentNoteIndex = 0;
+  bool notePlaying = false;
+  unsigned long noteStartTime = 0;
+
+  // Haptic timing - 3 pulses spread across 1500ms
+  int hapticPulses[] = {100, 600, 1100}; // When each pulse starts (ms)
+  int hapticDuration = 200;              // Each pulse lasts 200ms
+  int currentPulseIndex = 0;
+  bool pulsing = false;
+
+  // LED animation - smooth fade from 255 to 0 over 1500ms
+  while (elapsed < POWER_OFF_DURATION)
+  {
+    currentTime = millis();
+    elapsed = currentTime - startTime;
+
+    // --- SOUND EFFECT ---
+    if (soundEnabled && currentNoteIndex < 8)
+    {
+      if (elapsed >= soundTimings[currentNoteIndex] && !notePlaying)
+      {
+        // Start new note
+        tone(BUZZER_PIN, adjustVolume(soundNotes[currentNoteIndex]), soundDurations[currentNoteIndex]);
+        notePlaying = true;
+        noteStartTime = elapsed;
+      }
+
+      if (notePlaying && (elapsed - noteStartTime) >= soundDurations[currentNoteIndex])
+      {
+        // Note finished, move to next
+        notePlaying = false;
+        currentNoteIndex++;
+      }
+    }
+
+    // --- HAPTIC FEEDBACK ---
+    if (vibrationEnabled && currentPulseIndex < 3)
+    {
+      if (elapsed >= hapticPulses[currentPulseIndex] && !pulsing)
+      {
+        // Start pulse
+        digitalWrite(VIBRATION_PIN, HIGH);
+        pulsing = true;
+      }
+
+      if (pulsing && elapsed >= (hapticPulses[currentPulseIndex] + hapticDuration))
+      {
+        // End pulse
+        digitalWrite(VIBRATION_PIN, LOW);
+        pulsing = false;
+        currentPulseIndex++;
+      }
+    }
+
+    // --- LED ANIMATION ---
+    // Calculate brightness based on elapsed time (fade from 255 to 0)
+    int brightness = map(elapsed, 0, POWER_OFF_DURATION, 255, 0);
+    brightness = constrain(brightness, 0, 255);
+    FastLED.setBrightness(brightness);
+
+    // Color shift from blue (160) to red (0) as shutting down
+    int hue = map(brightness, 255, 0, 160, 0);
+    for (int i = 0; i < NUM_LEDS; i++)
+    {
+      leds[i] = CHSV(hue, 255, brightness);
+    }
+    FastLED.show();
+
+    // Small delay for smooth animation (targeting ~60fps)
+    delay(16);
+  }
+
+  // Cleanup after animation sequence
+  noTone(BUZZER_PIN);
+  digitalWrite(VIBRATION_PIN, LOW);
+  // Restore LED brightness for next power-on
+  FastLED.setBrightness(BRIGHTNESS);
+  // ⬆️ --- END OF MERGED ANIMATION --- ⬆️
+
+  // ⬇️ --- This is the simple, working sleep logic from your "OG" code --- ⬇️
 
   // Turn off display
   digitalWrite(TFT_LED, LOW);

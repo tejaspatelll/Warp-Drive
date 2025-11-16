@@ -13,7 +13,7 @@ void toggleSound() {
 }
 
 // Helper function to apply volume factor to frequency
-inline int adjustVolume(int frequency) {
+int adjustVolume(int frequency) {
   return round(frequency * VOLUME_FACTOR);
 }
 

@@ -25,6 +25,7 @@ struct CometParticle {
 // Module-private variables
 namespace {
   bool cometInitialized = false;
+  bool cometExited = false;                 // True when comet has exited but tail is still decaying
   float cometX = 0, cometY = 0;       // Current comet position
   float cometVx = 0, cometVy = 0;     // Comet velocity
   int cometRadius = 0;                // Comet nucleus radius
@@ -42,7 +43,7 @@ void drawComet() {
   float scale = objectScale;
   unsigned long currentTime = millis();
 
-  if (!cometInitialized) {
+  if (!cometInitialized && !cometExited) {
     // Initialize comet at a random edge
     int side = random(4); // 0=top, 1=right, 2=bottom, 3=left
     switch (side) {
@@ -91,49 +92,66 @@ void drawComet() {
     prevCometY = round(cometY);
     cometLastParticleTime = currentTime;
     cometInitialized = true;
+    cometExited = false;
   }
 
-  // Update comet position
-  cometX += cometVx;
-  cometY += cometVy;
+  // Update comet position only if it hasn't exited
+  if (!cometExited) {
+    cometX += cometVx;
+    cometY += cometVy;
 
-  // Draw comet nucleus
-  int x = round(cometX);
-  int y = round(cometY);
+    // Draw comet nucleus
+    int x = round(cometX);
+    int y = round(cometY);
 
-  // Erase previous nucleus
-  if (prevCometX >= 0 && prevCometX < SCREEN_WIDTH &&
-      prevCometY >= 0 && prevCometY < SCREEN_HEIGHT) {
-    tft.fillCircle(prevCometX, prevCometY, cometRadius + 1, BG_COLOR);
-  }
+    // Check if comet has exited screen
+    if (x < -cometRadius || x > SCREEN_WIDTH + cometRadius ||
+        y < -cometRadius || y > SCREEN_HEIGHT + cometRadius) {
+      // Erase nucleus only, keep tail particles to decay naturally
+      if (prevCometX >= 0 && prevCometX < SCREEN_WIDTH &&
+          prevCometY >= 0 && prevCometY < SCREEN_HEIGHT) {
+        tft.fillCircle(prevCometX, prevCometY, cometRadius + 1, BG_COLOR);
+      }
+      // Mark comet as exited but don't clear tail or reset initialization yet
+      cometExited = true;
+      cometInitialized = false;
+    } else {
+      // Comet is still on screen, draw it
+      // Erase previous nucleus
+      if (prevCometX >= 0 && prevCometX < SCREEN_WIDTH &&
+          prevCometY >= 0 && prevCometY < SCREEN_HEIGHT) {
+        tft.fillCircle(prevCometX, prevCometY, cometRadius + 1, BG_COLOR);
+      }
 
-  // Draw nucleus with glow
-  if (x >= 0 && x < SCREEN_WIDTH && y >= 0 && y < SCREEN_HEIGHT) {
-    for (int r = cometRadius; r > 0; r--) {
-      uint8_t brightness = map(r, 0, cometRadius, 100, 255);
-      uint16_t glowColor = tft.color565(brightness, brightness, brightness * 0.8);
-      tft.drawCircle(x, y, r, glowColor);
-    }
-    tft.fillCircle(x, y, cometRadius / 2, TFT_WHITE);
-    prevCometX = x;
-    prevCometY = y;
-  }
+      // Draw nucleus with glow
+      if (x >= 0 && x < SCREEN_WIDTH && y >= 0 && y < SCREEN_HEIGHT) {
+        for (int r = cometRadius; r > 0; r--) {
+          uint8_t brightness = map(r, 0, cometRadius, 100, 255);
+          uint16_t glowColor = tft.color565(brightness, brightness, brightness * 0.8);
+          tft.drawCircle(x, y, r, glowColor);
+        }
+        tft.fillCircle(x, y, cometRadius / 2, TFT_WHITE);
+        prevCometX = x;
+        prevCometY = y;
+      }
 
-  // Spawn new tail particles at a faster rate
-  if (currentTime - cometLastParticleTime > 5) {
-    for (int i = 0; i < MAX_COMET_TAIL; i++) {
-      if (cometTail[i].brightness == 0) {
-        cometTail[i].x = cometX + random(-1, 2);
-        cometTail[i].y = cometY + random(-1, 2);
-        float angle = atan2(-cometVy, -cometVx);
-        float angleDeviation = random(-30, 30) * PI / 180.0f;
-        float speedFactor = 0.05f + random(0, 100) / 500.0f;
-        cometTail[i].vx = cos(angle + angleDeviation) * speedFactor * scale;
-        cometTail[i].vy = sin(angle + angleDeviation) * speedFactor * scale;
-        cometTail[i].brightness = 150 + random(0, 106);
-        cometTail[i].spawnTime = currentTime;
-        cometLastParticleTime = currentTime;
-        break;
+      // Spawn new tail particles at a faster rate (only if comet hasn't exited)
+      if (currentTime - cometLastParticleTime > 5) {
+        for (int i = 0; i < MAX_COMET_TAIL; i++) {
+          if (cometTail[i].brightness == 0) {
+            cometTail[i].x = cometX + random(-1, 2);
+            cometTail[i].y = cometY + random(-1, 2);
+            float angle = atan2(-cometVy, -cometVx);
+            float angleDeviation = random(-30, 30) * PI / 180.0f;
+            float speedFactor = 0.05f + random(0, 100) / 500.0f;
+            cometTail[i].vx = cos(angle + angleDeviation) * speedFactor * scale;
+            cometTail[i].vy = sin(angle + angleDeviation) * speedFactor * scale;
+            cometTail[i].brightness = 150 + random(0, 106);
+            cometTail[i].spawnTime = currentTime;
+            cometLastParticleTime = currentTime;
+            break;
+          }
+        }
       }
     }
   }
@@ -181,33 +199,25 @@ void drawComet() {
     }
   }
 
-  // Handle comet exiting screen
-  if (x < -cometRadius || x > SCREEN_WIDTH + cometRadius ||
-      y < -cometRadius || y > SCREEN_HEIGHT + cometRadius) {
-    // Erase nucleus
-    if (prevCometX >= 0 && prevCometX < SCREEN_WIDTH &&
-        prevCometY >= 0 && prevCometY < SCREEN_HEIGHT) {
-      tft.fillCircle(prevCometX, prevCometY, cometRadius + 1, BG_COLOR);
-    }
-    // Erase tail
+  // Check if all tail particles have decayed (only if comet has exited)
+  if (cometExited) {
+    bool allParticlesDecayed = true;
     for (int i = 0; i < MAX_COMET_TAIL; i++) {
       if (cometTail[i].brightness > 0) {
-        int particleX = round(cometTail[i].x);
-        int particleY = round(cometTail[i].y);
-        if (particleX >= 0 && particleX < SCREEN_WIDTH &&
-            particleY >= 0 && particleY < SCREEN_HEIGHT) {
-          tft.drawPixel(particleX, particleY, BG_COLOR);
-        }
-        cometTail[i].brightness = 0;
+        allParticlesDecayed = false;
+        break;
       }
     }
-    cometInitialized = false;
+    // Only reset when all particles have decayed, allowing new comet to spawn
+    if (allParticlesDecayed) {
+      cometExited = false;
+    }
   }
 }
 
-// Erase function remains the same
+// Erase function
 void eraseComet() {
-  if (cometInitialized) {
+  if (cometInitialized || cometExited) {
     // Erase nucleus
     if (prevCometX >= 0 && prevCometX < SCREEN_WIDTH &&
         prevCometY >= 0 && prevCometY < SCREEN_HEIGHT) {
@@ -225,6 +235,7 @@ void eraseComet() {
       }
     }
     cometInitialized = false;
+    cometExited = false;
   }
 }
 
