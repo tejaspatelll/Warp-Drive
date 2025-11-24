@@ -143,8 +143,8 @@ bool quizActive = false;
 // GPIO 15 is a safe general-purpose pin with no special boot functions
 // NOTE: GPIO 10 and 11 are used by TFT display (TFT_RST=10, TFT_MOSI=11)
 // NOTE: GPIO 6 and 14 are also taken by other hardware
-#define BUTTON_PIN 4         // Primary button pin - RTC_GPIO_10 (required for deep sleep wake-up)
-#define SECOND_BUTTON_PIN 15 // Secondary button pin - safe general-purpose pin
+#define BUTTON_PIN 1         // Primary button pin
+#define SECOND_BUTTON_PIN 3  // Secondary button pin
 #define LONG_PRESS_TIME 3000 // Time in milliseconds for a long press to power off
 #define SHORT_PRESS_TIME 50  // Minimum time for a valid short press
 
@@ -1043,9 +1043,44 @@ void setup()
   }
 
   // Configure pins
+  // CRITICAL: Release ALL holds and RTC control first
+  // Use gpio_reset_pin to force pins back to a default neutral state
+  gpio_reset_pin((gpio_num_t)BUTTON_PIN);
+  gpio_reset_pin((gpio_num_t)SECOND_BUTTON_PIN);
+
+  gpio_deep_sleep_hold_dis();
+  gpio_hold_dis((gpio_num_t)TFT_LED);
+  gpio_hold_dis((gpio_num_t)TFT_CS);
+  gpio_hold_dis((gpio_num_t)LED_PIN);
+  gpio_hold_dis((gpio_num_t)VIBRATION_PIN);
+  gpio_hold_dis((gpio_num_t)BUZZER_PIN);
+  gpio_hold_dis((gpio_num_t)BUTTON_PIN);        // Ensure hold is off for button
+  gpio_hold_dis((gpio_num_t)SECOND_BUTTON_PIN); // Ensure hold is off for second button
+
+  // Explicitly de-init RTC GPIOs to return them to digital GPIO module
+  rtc_gpio_deinit((gpio_num_t)BUTTON_PIN);
+  rtc_gpio_deinit((gpio_num_t)SECOND_BUTTON_PIN);
+
+  // Configure pins as digital I/O
   pinMode(TFT_LED, OUTPUT);
+
+  // Configure buttons with internal pull-ups
+  // NOTE: If pins are floating (no external pull-up), internal is required.
   pinMode(BUTTON_PIN, INPUT_PULLUP);
   pinMode(SECOND_BUTTON_PIN, INPUT_PULLUP);
+
+  // Allow time for pull-ups to stabilize voltage level
+  delay(50);
+
+  // Force reset of popup state on every boot
+  soundSettingsPopupActive = false;
+
+  // Ensure persistent button state is reset
+  secondButtonPressed = false;
+  secondLastButtonTime = 0;
+  factPopupActive = false;
+  factText = "";
+  powerOffRequested = false;
 
   // Check if this is a wake from deep sleep
   esp_sleep_wakeup_cause_t wakeup_reason = esp_sleep_get_wakeup_cause();
@@ -1057,29 +1092,7 @@ void setup()
     Serial.printf("Wake-up reason: Button press (EXT0)\n");
     Serial.printf("Time in deep sleep: %llu ms\n", esp_timer_get_time() / 1000);
 
-    // Release GPIO holds from deep sleep FIRST (before reconfiguring pins)
-    gpio_deep_sleep_hold_dis();
-    gpio_hold_dis((gpio_num_t)TFT_LED);
-    gpio_hold_dis((gpio_num_t)TFT_CS); // Release SPI CS pin hold
-    gpio_hold_dis((gpio_num_t)LED_PIN);
-    gpio_hold_dis((gpio_num_t)VIBRATION_PIN);
-    gpio_hold_dis((gpio_num_t)BUZZER_PIN);
-    Serial.println("GPIO holds released");
-
-    // Release RTC GPIO on primary button FIRST (before releasing holds)
-    // This ensures proper pin state before we read it
-    rtc_gpio_deinit((gpio_num_t)BUTTON_PIN);
-    delay(10); // Allow pin to stabilize
-    pinMode(BUTTON_PIN, INPUT_PULLUP);
-    delay(50); // Allow pullup to stabilize
-    Serial.println("Primary button re-initialized from RTC GPIO mode");
-
-    // Release RTC GPIO isolation on secondary button
-    rtc_gpio_deinit((gpio_num_t)SECOND_BUTTON_PIN);
-    delay(10); // Allow pin to stabilize
-    pinMode(SECOND_BUTTON_PIN, INPUT_PULLUP);
-    delay(50); // Allow pullup to stabilize
-    Serial.println("Secondary button re-initialized");
+    // Note: RTC and GPIO holds are already released above for safety
 
     // Reset ALL button state variables after wake-up (synchronize all state)
     // This ensures checkPowerButton() and other functions start with clean state
@@ -1114,21 +1127,9 @@ void setup()
     // ============================================================
     // Restore SPI pins before initializing display
     // ============================================================
-    // Release SPI CS pin hold
-    gpio_hold_dis((gpio_num_t)TFT_CS);
 
-    // Reconfigure SPI pins for display communication
-    pinMode(TFT_CS, OUTPUT);
-    digitalWrite(TFT_CS, HIGH); // De-select initially
-    pinMode(TFT_DC, OUTPUT);
-    pinMode(TFT_RST, OUTPUT);
-    pinMode(TFT_MOSI, OUTPUT);
-    pinMode(TFT_SCLK, OUTPUT);
-
-    // Reinitialize SPI
-    SPI.begin();
-    delay(10);
-    Serial.println("SPI pins restored and SPI reinitialized");
+    // Note: We rely on tft.init() to handle SPI initialization correctly.
+    // Manual SPI configuration here is removed to avoid conflicts.
 
     // Initialize display
     Serial.println("Turning on backlight (wake from sleep)...");
@@ -1183,31 +1184,29 @@ void setup()
     Serial.println("Normal power-on");
     isPoweredOn = true;
 
-    // Initialize SPI before display initialization
-    pinMode(TFT_CS, OUTPUT);
-    digitalWrite(TFT_CS, HIGH); // De-select initially
-    pinMode(TFT_DC, OUTPUT);
-    pinMode(TFT_RST, OUTPUT);
-    pinMode(TFT_MOSI, OUTPUT);
-    pinMode(TFT_SCLK, OUTPUT);
-    SPI.begin();
-    delay(10);
-    Serial.println("SPI initialized for normal power-on");
+    // Ensure persistent button state is reset on cold boot
+    secondButtonPressed = false;
+    secondLastButtonTime = 0;
+    factPopupActive = false;
+
+    // Initialize pins for buttons
+    // Note: Setup already called pinMode earlier, but we confirm here
 
     // Turn on backlight before initializing display
+    pinMode(TFT_LED, OUTPUT);
     digitalWrite(TFT_LED, HIGH);
     delay(50); // Small delay to ensure backlight is stable
 
-    initializeSystem();
+    initializeSystem(); // Default is false (display not initialized)
   }
 }
 
 // Add this new function to handle system initialization
 void initializeSystem(bool displayAlreadyInitialized)
 {
-  initializeScaling();                  // Initialize scaling factors first
-  tft.setAttribute(PSRAM_ENABLE, true); // <<<< Temporarily commented out for testing PSRAM issue
-  // Serial.printf("Inside initializeSystem, (global tft PSRAM_ENABLE is OFF for this test) - Free PSRAM: %u, Free Heap: %u\n", ESP.getFreePsram(), ESP.getFreeHeap());
+  initializeScaling(); // Initialize scaling factors first
+  // Enable PSRAM for sprites if available
+  tft.setAttribute(PSRAM_ENABLE, true);
 
   // Reset menu buffer data when system initializes
   g_boxY = SCREEN_HEIGHT * 0.25;
@@ -1791,12 +1790,14 @@ void processInput()
           delay(10); // Small delay to allow memory management
         }
 
-        // Close fact popup when exiting to menu
+        // Close fact popup when exiting to menu (always reset, even if not active)
         if (factPopupActive)
         {
           factPopupActive = false;
           hideFactPopup();
         }
+        // Ensure fact popup is always false when leaving discovery mode
+        factPopupActive = false;
 
         // Return to menu with screen clear
         currentState = State::MENU;
@@ -3778,15 +3779,12 @@ void processMenuInput()
   static int lastMenuItem = currentMenuItem;
   static unsigned long lastButtonTime = 0;
   static bool buttonPressed = false;
-  static unsigned long lastSecondButtonTime = 0;
-  static bool secondButtonPressed = false;
-
   // Check secondary button for settings popup
   bool secBtn = digitalRead(SECOND_BUTTON_PIN) == LOW;
-  if (secBtn && !secondButtonPressed && millis() - lastSecondButtonTime > 300)
+  if (secBtn && !secondButtonPressed && millis() - secondLastButtonTime > 300)
   {
     secondButtonPressed = true;
-    lastSecondButtonTime = millis();
+    secondLastButtonTime = millis();
 
     // Play beep sound for secondary button press
     playUISound_Beep();
