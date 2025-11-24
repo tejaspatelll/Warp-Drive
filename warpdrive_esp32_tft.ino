@@ -1150,7 +1150,10 @@ void setup()
     initColors();
     tft.fillScreen(COLOR_BG);
 
-    // Show wake-up message
+    // Continue with normal initialization
+    initializeSystem(); // This calls tft.init() and draws the menu
+
+    // Show wake-up message briefly (will be visible before menu redraws if needed)
     tft.setTextColor(COLOR_GREEN);
     tft.setTextSize(1);
     tft.setCursor((SCREEN_WIDTH - tft.textWidth("Warp Drive Loading...")) / 2, SCREEN_HEIGHT / 2);
@@ -1180,7 +1183,7 @@ void setup()
   }
   else
   {
-    // Normal power-on
+    // Normal power-on (This is the simple, working "OG" logic)
     Serial.println("Normal power-on");
     isPoweredOn = true;
 
@@ -1339,6 +1342,11 @@ void loop()
     {
       hapticFeedback(warpFactor);
     }
+    else if (currentState == State::STORY && storyModeManager.isActive() && storyModeManager.isWarping())
+    {
+      // Story mode warp - use warp factor from story mode
+      hapticFeedback(storyModeManager.getWarpFactor());
+    }
     else
     {
       hapticFeedback(0.0f);
@@ -1401,18 +1409,18 @@ void loop()
       stopMenuBackgroundMusic();
       stopQuizQuestionMusic();
       {
-        bool storyShouldExit;
-        if (!factPopupActive)
+        // Always call update() to keep visuals running
+        // update() internally calls processInput() and updateCurrentStepVisuals()
+        // updateCurrentStepVisuals() already checks factPopupActive and won't draw
+        // the narration box when popup is active, so this is safe
+        bool storyShouldExit = storyModeManager.update(potValue, digitalRead(BUTTON_PIN) == LOW);
+
+        // If popup is active and not warping, ensure stars keep twinkling
+        if (factPopupActive && !storyModeManager.isWarping())
         {
-          // Normal story update (draws narrative and objects)
-          storyShouldExit = storyModeManager.update(potValue, digitalRead(BUTTON_PIN) == LOW);
-        }
-        else
-        {
-          // Fact popup active: only process input and keep stars animating
-          storyShouldExit = storyModeManager.processInput(potValue, digitalRead(BUTTON_PIN) == LOW);
           updateStars();
         }
+
         if (storyShouldExit)
         {
           // storyModeManager.exit() was already called internally by the update/processInput methods
@@ -1434,7 +1442,15 @@ void loop()
             factPopupActive = false;
             hideFactPopup();
           }
-          setLedModeStory(); // Set LED for story mode
+          // Set LED mode - use warp mode if warping, otherwise story mode
+          if (storyModeManager.isWarping())
+          {
+            setLedModeWarp(); // Use warp LED mode during story warp
+          }
+          else
+          {
+            setLedModeStory(); // Normal story mode LED
+          }
 
           // Secondary button press to show story fact popup
           {
@@ -2175,9 +2191,27 @@ void processInput()
  */
 void updateStars()
 {
+  // Get viewport bounds ONLY if in story mode with console UI AND not warping
+  int minX = 0, maxX = SCREEN_WIDTH;
+  int minY = 0, maxY = SCREEN_HEIGHT;
+  bool constrainToViewport = false;
+
+  if (currentState == State::STORY && storyModeManager.isActive() && !storyModeManager.isWarping())
+  {
+    minX = storyModeManager.getViewportX();
+    minY = storyModeManager.getViewportY();
+    maxX = minX + storyModeManager.getViewportSize();
+    maxY = minY + storyModeManager.getViewportSize();
+    constrainToViewport = true;
+  }
+
   for (int i = 0; i < STAR_COUNT; i++)
   {
-    if (stars[i].x >= 0 && stars[i].x < SCREEN_WIDTH &&
+    // Check if star is within visible bounds
+    bool inBounds = stars[i].x >= minX && stars[i].x < maxX &&
+                    stars[i].y >= minY && stars[i].y < maxY;
+
+    if (inBounds && stars[i].x >= 0 && stars[i].x < SCREEN_WIDTH &&
         stars[i].y >= 0 && stars[i].y < SCREEN_HEIGHT)
     {
       tft.drawPixel(stars[i].x, stars[i].y, BG_COLOR);
@@ -2200,18 +2234,40 @@ void updateStars()
       }
     }
 
-    if (stars[i].x < 0 || stars[i].x >= SCREEN_WIDTH ||
-        stars[i].y < 0 || stars[i].y >= SCREEN_HEIGHT)
+    // Reposition star if out of bounds
+    if (constrainToViewport)
     {
-      stars[i].x = random(SCREEN_WIDTH);
-      stars[i].y = random(SCREEN_HEIGHT);
-      // Add missing realX/realY updates for consistency
-      stars[i].realX = static_cast<float>(stars[i].x);
-      stars[i].realY = static_cast<float>(stars[i].y);
-      stars[i].brightness = random(150, 256);
-      stars[i].increasing = random(0, 2);
+      if (stars[i].x < minX || stars[i].x >= maxX ||
+          stars[i].y < minY || stars[i].y >= maxY)
+      {
+        stars[i].x = random(minX, maxX);
+        stars[i].y = random(minY, maxY);
+        stars[i].realX = static_cast<float>(stars[i].x);
+        stars[i].realY = static_cast<float>(stars[i].y);
+        stars[i].brightness = random(150, 256);
+        stars[i].increasing = random(0, 2);
+      }
     }
-    drawStar(stars[i]);
+    else
+    {
+      if (stars[i].x < 0 || stars[i].x >= SCREEN_WIDTH ||
+          stars[i].y < 0 || stars[i].y >= SCREEN_HEIGHT)
+      {
+        stars[i].x = random(SCREEN_WIDTH);
+        stars[i].y = random(SCREEN_HEIGHT);
+        // Add missing realX/realY updates for consistency
+        stars[i].realX = static_cast<float>(stars[i].x);
+        stars[i].realY = static_cast<float>(stars[i].y);
+        stars[i].brightness = random(150, 256);
+        stars[i].increasing = random(0, 2);
+      }
+    }
+
+    // Only draw star if in bounds
+    if (inBounds || !constrainToViewport)
+    {
+      drawStar(stars[i]);
+    }
   }
 }
 
@@ -2309,20 +2365,57 @@ void updateWarpStars()
   }
   lastWarpFrame = currentTime;
 
-  const float centerX = SCREEN_WIDTH / 2.0f;
-  const float centerY = SCREEN_HEIGHT / 2.0f;
+  // Get viewport bounds if in story mode - warp contained to viewport only!
+  float centerX, centerY;
+  int minX, minY, maxX, maxY;
+
+  if (currentState == State::STORY && storyModeManager.isActive())
+  {
+    minX = storyModeManager.getViewportX();
+    minY = storyModeManager.getViewportY();
+    int vpSize = storyModeManager.getViewportSize();
+    maxX = minX + vpSize;
+    maxY = minY + vpSize;
+    centerX = minX + vpSize / 2.0f;
+    centerY = minY + vpSize / 2.0f;
+  }
+  else
+  {
+    minX = 0;
+    minY = 0;
+    maxX = SCREEN_WIDTH;
+    maxY = SCREEN_HEIGHT;
+    centerX = SCREEN_WIDTH / 2.0f;
+    centerY = SCREEN_HEIGHT / 2.0f;
+  }
 
   // Use double buffering if available, otherwise fall back to direct drawing
   if (bufferInitialized && warpBuffer != nullptr)
   {
-    // Debug: Print which path we're taking
-    // Serial.println("Using double buffering");
-    // Clear the buffer to background color (pure black)
-    // Use explicit black color value instead of TFT_BLACK
-    uint16_t blackColor = 0x0000; // Pure black in RGB565
-    for (int i = 0; i < SCREEN_WIDTH * SCREEN_HEIGHT; i++)
+    // In story mode, preserve the UI by only clearing viewport area in buffer
+    if (currentState == State::STORY && storyModeManager.isActive())
     {
-      warpBuffer[i] = blackColor;
+      // Only clear the viewport region of the buffer, leave rest untouched
+      int vpX = storyModeManager.getViewportX();
+      int vpY = storyModeManager.getViewportY();
+      int vpSize = storyModeManager.getViewportSize();
+
+      for (int y = vpY; y < vpY + vpSize; y++)
+      {
+        for (int x = vpX; x < vpX + vpSize; x++)
+        {
+          warpBuffer[y * SCREEN_WIDTH + x] = BG_COLOR;
+        }
+      }
+    }
+    else
+    {
+      // Discovery mode - clear entire buffer
+      uint16_t bgColor = BG_COLOR;
+      for (int i = 0; i < SCREEN_WIDTH * SCREEN_HEIGHT; i++)
+      {
+        warpBuffer[i] = bgColor;
+      }
     }
 
     // Debug test pattern removed
@@ -2357,9 +2450,9 @@ void updateWarpStars()
         int streakX = roundf(stars[i].realX + dirX * j);
         int streakY = roundf(stars[i].realY + dirY * j);
 
-        // Only draw pixels that are on screen
-        if (streakX >= 0 && streakX < SCREEN_WIDTH &&
-            streakY >= 0 && streakY < SCREEN_HEIGHT)
+        // Only draw pixels that are within viewport bounds
+        if (streakX >= minX && streakX < maxX &&
+            streakY >= minY && streakY < maxY)
         {
           // Fade: head bright -> tail dim. Use gamma-ish curve for smoother falloff
           float t = (streakLength > 0) ? (float)j / (float)streakLength : 0.0f; // 0 at head
@@ -2381,30 +2474,82 @@ void updateWarpStars()
       int newX = roundf(stars[i].realX);
       int newY = roundf(stars[i].realY);
 
-      // Reset stars that move off screen
-      if (newX < 0 || newX >= SCREEN_WIDTH ||
-          newY < 0 || newY >= SCREEN_HEIGHT)
+      // Reset stars that move off viewport bounds
+      if (newX < minX || newX >= maxX ||
+          newY < minY || newY >= maxY)
       {
-        // Reset the star's position
+        // Reset the star's position within the viewport - ensure it's visible
         float angle = random(0, 360) * PI / 180.0f;
-        float maxRadius = sqrt((SCREEN_WIDTH / 2.0f) * (SCREEN_WIDTH / 2.0f) + (SCREEN_HEIGHT / 2.0f) * (SCREEN_HEIGHT / 2.0f));
-        float distance = random(10, maxRadius);
+        float maxRadius = sqrt(powf((maxX - minX) / 2.0f, 2) + powf((maxY - minY) / 2.0f, 2));
+        float distance = random(5, (int)(maxRadius * 0.8f)); // Keep stars closer to center for better visibility
         stars[i].realX = centerX + cos(angle) * distance;
         stars[i].realY = centerY + sin(angle) * distance;
         stars[i].x = roundf(stars[i].realX);
         stars[i].y = roundf(stars[i].realY);
-        stars[i].brightness = random(150, 256);
+        stars[i].brightness = random(180, 256); // Brighter stars for better visibility
+        stars[i].streakLength = 0;              // Reset streak
       }
       else
       {
-        // Star is still on screen
+        // Star is still within viewport
         stars[i].x = newX;
         stars[i].y = newY;
       }
     }
 
-    // Push the entire buffer to the display at once
-    tft.pushImage(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, warpBuffer);
+    // Push the buffer to display
+    // In story mode, only push the viewport area to preserve UI
+    if (currentState == State::STORY && storyModeManager.isActive())
+    {
+      int vpSize = storyModeManager.getViewportSize();
+      int vpX = storyModeManager.getViewportX();
+      int vpY = storyModeManager.getViewportY();
+
+      // Extract viewport section and push using pushImage for reliability
+      // Copy viewport area from main buffer to temporary buffer row by row
+      static uint16_t *viewportBuffer = nullptr;
+      static int lastVpSize = 0;
+
+      // Allocate temporary buffer if needed (only once, reuse if size matches)
+      if (viewportBuffer == nullptr || lastVpSize != vpSize)
+      {
+        if (viewportBuffer != nullptr)
+        {
+          free(viewportBuffer);
+        }
+        viewportBuffer = (uint16_t *)malloc(vpSize * vpSize * sizeof(uint16_t));
+        lastVpSize = vpSize;
+      }
+
+      if (viewportBuffer != nullptr)
+      {
+        // Copy viewport area from main buffer to temporary buffer
+        for (int y = 0; y < vpSize; y++)
+        {
+          uint16_t *srcRow = &warpBuffer[(vpY + y) * SCREEN_WIDTH + vpX];
+          uint16_t *dstRow = &viewportBuffer[y * vpSize];
+          memcpy(dstRow, srcRow, vpSize * sizeof(uint16_t));
+        }
+
+        // Push the viewport buffer to display
+        tft.pushImage(vpX, vpY, vpSize, vpSize, viewportBuffer);
+      }
+      else
+      {
+        // Fallback: push row by row if allocation failed
+        for (int y = 0; y < vpSize; y++)
+        {
+          tft.setAddrWindow(vpX, vpY + y, vpSize, 1);
+          uint16_t *rowPtr = &warpBuffer[(vpY + y) * SCREEN_WIDTH + vpX];
+          tft.pushPixels(rowPtr, vpSize);
+        }
+      }
+    }
+    else
+    {
+      // Discovery mode - use full screen
+      tft.pushImage(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, warpBuffer);
+    }
 
     // Debug: Print some buffer values to see what's in there
     // Serial.printf("Buffer[0]: 0x%04X, Buffer[1]: 0x%04X\n", warpBuffer[0], warpBuffer[1]);
@@ -2420,18 +2565,19 @@ void updateWarpStars()
     // Debug: Print which path we're taking
     // Serial.println("Using direct drawing fallback");
     // Fallback to optimized direct drawing (original method but improved)
-    // Clear previous streaks more efficiently
+    // Clear previous streaks more efficiently - constrained to viewport
     for (int i = 0; i < STAR_COUNT; i++)
     {
       for (int j = 0; j <= MAX_STREAK_LENGTH; j++)
       {
         uint16_t px = prevX[i][j];
         uint16_t py = prevY[i][j];
-        if (px < SCREEN_WIDTH && py < SCREEN_HEIGHT)
+        // Check if within viewport bounds
+        if (px >= minX && px < maxX && py >= minY && py < maxY)
         {
           tft.drawPixel(px, py, BG_COLOR);
-          prevX[i][j] = SCREEN_WIDTH;
-          prevY[i][j] = SCREEN_HEIGHT;
+          prevX[i][j] = maxX + 1; // Out of bounds marker
+          prevY[i][j] = maxY + 1;
         }
       }
     }
@@ -2465,8 +2611,9 @@ void updateWarpStars()
         int streakX = roundf(stars[i].realX + dirX * j);
         int streakY = roundf(stars[i].realY + dirY * j);
 
-        if (streakX >= 0 && streakX < SCREEN_WIDTH &&
-            streakY >= 0 && streakY < SCREEN_HEIGHT)
+        // Check if within viewport bounds
+        if (streakX >= minX && streakX < maxX &&
+            streakY >= minY && streakY < maxY)
         {
           prevX[i][j] = streakX;
           prevY[i][j] = streakY;
@@ -2480,16 +2627,16 @@ void updateWarpStars()
         }
         else
         {
-          prevX[i][j] = SCREEN_WIDTH;
-          prevY[i][j] = SCREEN_HEIGHT;
+          prevX[i][j] = maxX + 1; // Out of bounds marker
+          prevY[i][j] = maxY + 1;
         }
       }
 
       // Clear any remaining streak storage
       for (int j = streakLength + 1; j <= MAX_STREAK_LENGTH; ++j)
       {
-        prevX[i][j] = SCREEN_WIDTH;
-        prevY[i][j] = SCREEN_HEIGHT;
+        prevX[i][j] = maxX + 1;
+        prevY[i][j] = maxY + 1;
       }
 
       // Update star position with scaled speed
@@ -2503,25 +2650,25 @@ void updateWarpStars()
       int newX = roundf(stars[i].realX);
       int newY = roundf(stars[i].realY);
 
-      // Reset stars that move off screen
-      if (newX < 0 || newX >= SCREEN_WIDTH ||
-          newY < 0 || newY >= SCREEN_HEIGHT)
+      // Reset stars that move off viewport bounds
+      if (newX < minX || newX >= maxX ||
+          newY < minY || newY >= maxY)
       {
         // Erase the streak before resetting
         for (int j = 0; j <= MAX_STREAK_LENGTH; j++)
         {
           uint16_t px = prevX[i][j];
           uint16_t py = prevY[i][j];
-          if (px < SCREEN_WIDTH && py < SCREEN_HEIGHT)
+          if (px >= minX && px < maxX && py >= minY && py < maxY)
           {
             tft.drawPixel(px, py, BG_COLOR);
           }
         }
 
-        // Reset the star's position
+        // Reset the star's position within viewport
         float angle = random(0, 360) * PI / 180.0f;
-        float maxRadius = sqrt((SCREEN_WIDTH / 2.0f) * (SCREEN_WIDTH / 2.0f) + (SCREEN_HEIGHT / 2.0f) * (SCREEN_HEIGHT / 2.0f));
-        float distance = random(10, maxRadius);
+        float maxRadius = sqrt(powf((maxX - minX) / 2.0f, 2) + powf((maxY - minY) / 2.0f, 2));
+        float distance = random(10, (int)maxRadius);
         stars[i].realX = centerX + cos(angle) * distance;
         stars[i].realY = centerY + sin(angle) * distance;
         stars[i].x = roundf(stars[i].realX);
@@ -2531,13 +2678,13 @@ void updateWarpStars()
         // Clear the previous position buffer
         for (int j = 0; j <= MAX_STREAK_LENGTH; j++)
         {
-          prevX[i][j] = SCREEN_WIDTH;
-          prevY[i][j] = SCREEN_HEIGHT;
+          prevX[i][j] = maxX + 1;
+          prevY[i][j] = maxY + 1;
         }
       }
       else
       {
-        // Star is still on screen
+        // Star is still within viewport
         stars[i].x = newX;
         stars[i].y = newY;
       }
@@ -2549,6 +2696,8 @@ void updateWarpStars()
       handleExitAnimation();
     }
   }
+
+  // Warp animation complete - stars constrained to viewport in story mode!
 }
 
 /**

@@ -100,6 +100,9 @@ void updateWarpSound(float warpFactor);
 // Initialize the buzzer pin
 void initBuzzer();
 
+// Helper function to apply volume factor to frequency
+int adjustVolume(int frequency);
+
 // Menu sounds
 void playMenuNavSound();
 void playMenuSelectSound();

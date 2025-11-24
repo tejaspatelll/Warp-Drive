@@ -99,6 +99,7 @@ void drawComet()
     cometLastParticleTime = currentTime;
     cometHeadExited = false;
     cometInitialized = true;
+    cometExited = false;
   }
 
   // Update comet position only if head hasn't exited
@@ -108,9 +109,9 @@ void drawComet()
     cometY += cometVy;
   }
 
-  // Draw comet nucleus
-  int x = round(cometX);
-  int y = round(cometY);
+    // Draw comet nucleus
+    int x = round(cometX);
+    int y = round(cometY);
 
   // Erase previous nucleus
   if (prevCometX >= 0 && prevCometX < SCREEN_WIDTH &&
